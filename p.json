@@ -1,0 +1,32 @@
+{
+  "name": "telegram-admin-server",
+  "version": "1.0.0",
+  "main": "lib/cjs/index.js",
+  "module": "lib/esm/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./lib/esm/index.js",
+      "require": "./lib/cjs/index.js",
+      "types": "./lib/types/index.d.ts"
+    }
+  },
+  "files": ["lib", "README.md"],
+  "scripts": {
+    "build": "npm run build:cjs && npm run build:esm && npm run build:types",
+    "build:cjs": "tsc --module commonjs --outDir lib/cjs && babel lib/cjs --out-dir lib/cjs",
+    "build:esm": "tsc --module esnext --outDir lib/esm && babel lib/esm --out-dir lib/esm",
+    "build:types": "tsc --emitDeclarationOnly --outDir lib/types",
+    "dev": "tsc --watch --noEmit",
+    "link": "npm link",
+    "pack": "npm run build && npm pack",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@babel/cli": "^7.24.0",
+    "@babel/preset-env": "^7.24.0",
+    "@babel/preset-typescript": "^7.24.0",
+    "typescript": "^5.4.0"
+  }
+}
