@@ -19,16 +19,3 @@ module.exports = {
   SubscriptionService,
   UserService,
 };
-
-// ESM support
-export {
-  AdminServer,
-  createAdminServer,
-  BroadcastService,
-  PaymentService,
-  PromocodeService,
-  RefferService,
-  ReportService,
-  SubscriptionService,
-  UserService,
-};

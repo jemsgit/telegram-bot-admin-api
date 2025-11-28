@@ -33,11 +33,17 @@ export interface Promo {
   segments: string[];
 }
 
+export interface RefferalCount {
+  refLink: string;
+  count: number;
+}
+
 export interface UserReport {
   userId: number;
   message: string;
   adminReply: string;
   done: boolean;
+  _id: string;
 }
 
 export interface Subscription {

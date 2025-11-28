@@ -6,7 +6,6 @@ import type {
   Subscription,
   User,
 } from "./models";
-import type { Document } from "mongoose";
 
 export interface TypedDB {
   // Broadcast methods
