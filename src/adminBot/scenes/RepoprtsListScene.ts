@@ -3,7 +3,6 @@ import { Scenes, Markup } from "telegraf";
 import { message } from "telegraf/filters";
 import type {
   AdminServices,
-  AdminBotSessionData,
   AdminBotContext,
 } from "../../types";
 import { safeReply } from "../utils";

@@ -194,7 +194,7 @@ export function getAdminAssignPromoScene(
       } else {
         await safeReply(ctx, message, Markup.inlineKeyboard(buttons));
       }
-    } catch (error) {
+    } catch {
       // Если не удалось отредактировать, отправляем новое сообщение
       await safeReply(ctx, message, Markup.inlineKeyboard(buttons));
     }

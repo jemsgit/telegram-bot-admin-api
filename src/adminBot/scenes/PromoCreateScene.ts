@@ -12,7 +12,7 @@ import type {
 
 export function getAdminPromoCreateScene(
   services: AdminServices,
-  config: AdminBotConfig
+  _config: AdminBotConfig
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>("AdminPromoCreateScene");
 
@@ -43,7 +43,7 @@ export function getAdminPromoCreateScene(
     }
 
     switch (session.promoCreateStep) {
-      case "code":
+      case "code": {
         // Проверяем уникальность кода
         const promos = await services.promocodeService.getAll();
         const existing = promos.find((item) => item.code === text);
@@ -70,8 +70,9 @@ export function getAdminPromoCreateScene(
           ])
         );
         break;
+      }
 
-      case "discount":
+      case "discount": {
         const discount = parseInt(text);
         if (isNaN(discount) || discount <= 0 || discount > 100) {
           await safeReply(
@@ -96,8 +97,9 @@ export function getAdminPromoCreateScene(
           ])
         );
         break;
+      }
 
-      case "price":
+      case "price": {
         const price = parseFloat(text);
         if (isNaN(price) || price < 0) {
           await safeReply(
@@ -122,6 +124,7 @@ export function getAdminPromoCreateScene(
           ])
         );
         break;
+      }
 
       case "description":
         session.promoDraft!.description = text;
@@ -145,7 +148,7 @@ export function getAdminPromoCreateScene(
               [Markup.button.callback("« Отмена", "cancel_create")],
             ])
           );
-        } catch (error) {
+        } catch {
           await safeReply(
             ctx,
             "❌ Неверный формат даты. Используйте ДД.ММ.ГГГГ (например: 01.12.2025):",
@@ -162,7 +165,7 @@ export function getAdminPromoCreateScene(
           session.promoDraft!.activeTo = dateTo;
 
           await showConfirmation(ctx, session, services);
-        } catch (error) {
+        } catch {
           await safeReply(
             ctx,
             "❌ Неверный формат даты. Используйте ДД.ММ.ГГГГ (например: 31.12.2025):",
@@ -232,7 +235,7 @@ export function getAdminPromoCreateScene(
       // Очищаем черновик
       session.promoDraft = undefined;
       session.promoCreateStep = undefined;
-    } catch (error) {
+    } catch {
       console.error("Error creating promo:", error);
       await safeReply(
         ctx,
@@ -295,7 +298,7 @@ async function askForDates(ctx: AdminBotContext, session: any) {
 async function showConfirmation(
   ctx: AdminBotContext,
   session: any,
-  services: AdminServices
+  _services: AdminServices
 ) {
   const promo = session.promoDraft!;
 

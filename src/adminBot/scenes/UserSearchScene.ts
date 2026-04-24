@@ -10,7 +10,7 @@ import type {
 
 export function getAdminUserSearchScene(
   services: AdminServices,
-  config: AdminBotConfig
+  _config: AdminBotConfig
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>("AdminUserSearchScene");
 

@@ -3,6 +3,7 @@ import { AdminBotContext } from "../types";
 export async function safeReply(ctx: any, text: string, markup?: any) {
   try {
     await ctx.reply(text, markup);
+    // eslint-disable-next-line no-empty
   } catch {}
 }
 

@@ -11,8 +11,9 @@ export interface AdCreateBody {
   endsAt?: string | null;
 }
 
-export interface AdUpdateBody
-  extends Partial<Omit<PostContentAd, "_id" | "createdAt" | "updatedAt">> {}
+export type AdUpdateBody = Partial<
+  Omit<PostContentAd, "_id" | "createdAt" | "updatedAt">
+>;
 
 export class PostContentService {
   constructor(private db: TypedDB) {}

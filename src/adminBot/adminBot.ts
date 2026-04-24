@@ -9,7 +9,6 @@ import {
 import type {
   AdminBotConfig,
   AdminBotContext,
-  AdminServices,
   BotApp,
   CustomScene,
   TypedDB,
@@ -76,11 +75,6 @@ export class AdminBot {
   }
 
   private initStage() {
-    const MainAdminMenuScene = getMainAdminMenuScene(
-      this.services,
-      this.config,
-      this.customScenes
-    );
     this.stage = new Scenes.Stage([
       getMainAdminMenuScene(this.services, this.config, this.customScenes),
       getAdminUserSearchScene(this.services, this.config),

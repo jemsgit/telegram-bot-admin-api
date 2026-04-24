@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { AdminServer } = require("./AdminServer");
 const { createAdminServer } = require("./createAdminServer");
 const { BroadcastService } = require("./services/broadcast");

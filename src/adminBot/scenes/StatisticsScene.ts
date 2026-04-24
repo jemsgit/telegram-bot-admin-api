@@ -10,7 +10,7 @@ type Ctx = AdminBotContext;
 /**
  * Сцена статистики
  */
-export function getStatsScene(services: AdminServices, config: AdminBotConfig) {
+export function getStatsScene(services: AdminServices, _config: AdminBotConfig) {
   const scene = new Scenes.BaseScene<Ctx>("AdminStatisticsScene");
 
   scene.enter(async (ctx) => {

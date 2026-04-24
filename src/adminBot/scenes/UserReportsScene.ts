@@ -4,13 +4,12 @@ import { message } from "telegraf/filters";
 import type {
   AdminServices,
   AdminBotConfig,
-  AdminBotSessionData,
   AdminBotContext,
 } from "../../types";
 
 export function getAdminUserReportsScene(
   services: AdminServices,
-  config: AdminBotConfig
+  _config: AdminBotConfig
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>("AdminUserReportsScene");
 

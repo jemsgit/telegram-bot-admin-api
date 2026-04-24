@@ -1,6 +1,5 @@
 // ./scenes/AdminPromoListScene.ts
 import { Scenes, Markup } from "telegraf";
-import { message } from "telegraf/filters";
 import { safeReply } from "../utils";
 import type {
   AdminServices,
@@ -10,7 +9,7 @@ import type {
 
 export function getAdminPromoListScene(
   services: AdminServices,
-  config: AdminBotConfig
+  _config: AdminBotConfig
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>("AdminPromoListScene");
 

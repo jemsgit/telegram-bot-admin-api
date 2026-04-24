@@ -10,7 +10,7 @@ import type {
 
 export function getAdminBroadcastCreateScene(
   services: AdminServices,
-  config: AdminBotConfig
+  _config: AdminBotConfig
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>(
     "AdminBroadcastCreateScene"
@@ -122,7 +122,7 @@ export function getAdminBroadcastCreateScene(
           session.broadcastStep = "excludePaid";
 
           await askForExcludePaid(ctx, session);
-        } catch (error) {
+        } catch {
           await safeReply(
             ctx,
             "❌ Неверный формат даты/времени. Используйте формат: ДД.ММ.ГГГГ ЧЧ:ММ\n" +
@@ -135,7 +135,7 @@ export function getAdminBroadcastCreateScene(
         }
         break;
 
-      case "linkButton":
+      case "linkButton": {
         // Формат: "Текст кнопки|https://example.com"
         const parts = text.split("|");
 
@@ -184,6 +184,7 @@ export function getAdminBroadcastCreateScene(
           ])
         );
         break;
+      }
     }
   });
 
@@ -512,7 +513,7 @@ async function askForExcludePaid(ctx: AdminBotContext, session: any) {
   );
 }
 
-async function askForLinkButtons(ctx: AdminBotContext, session: any) {
+async function askForLinkButtons(ctx: AdminBotContext, _session: any) {
   await safeReply(
     ctx,
     "Хотите добавить кнопки со ссылками?\n\n" +
@@ -529,7 +530,7 @@ async function askForLinkButtons(ctx: AdminBotContext, session: any) {
 async function showConfirmation(
   ctx: AdminBotContext,
   session: any,
-  services: AdminServices
+  _services: AdminServices
 ) {
   const draft = session.broadcastDraft!;
 
@@ -625,7 +626,7 @@ function isValidUrl(string: string): boolean {
   try {
     new URL(string);
     return true;
-  } catch (_) {
+  } catch {
     return false;
   }
 }

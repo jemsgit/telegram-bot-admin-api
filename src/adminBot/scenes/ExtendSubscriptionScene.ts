@@ -5,13 +5,12 @@ import { safeReply } from "../utils";
 import type {
   AdminServices,
   AdminBotConfig,
-  AdminBotSessionData,
   AdminBotContext,
 } from "../../types";
 
 export function getAdminExtendSubscriptionScene(
   services: AdminServices,
-  config: AdminBotConfig
+  _config: AdminBotConfig
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>(
     "AdminExtendSubscriptionScene"

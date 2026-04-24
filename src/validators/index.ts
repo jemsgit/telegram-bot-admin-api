@@ -86,7 +86,7 @@ const promoCreateSchema = Joi.object<PromoCreateBody>({
 
 // Типизированные middleware
 export const validateDays = (
-  req: Request<{}, any, DaysBody>,
+  req: Request<Record<string, never>, unknown, DaysBody>,
   res: Response,
   next: NextFunction
 ): void => {
@@ -100,7 +100,7 @@ export const validateDays = (
 };
 
 export const validateReply = (
-  req: Request<{}, any, ReportReplyBody>,
+  req: Request<Record<string, never>, unknown, ReportReplyBody>,
   res: Response,
   next: NextFunction
 ): void => {
@@ -114,7 +114,7 @@ export const validateReply = (
 };
 
 export const validatePromoCode = (
-  req: Request<{}, any, PromoCodeBody>,
+  req: Request<Record<string, never>, unknown, PromoCodeBody>,
   res: Response,
   next: NextFunction
 ): void => {
@@ -128,7 +128,7 @@ export const validatePromoCode = (
 };
 
 export const validatePromoCreate = (
-  req: Request<{}, any, PromoCreateBody>,
+  req: Request<Record<string, never>, unknown, PromoCreateBody>,
   res: Response,
   next: NextFunction
 ): void => {

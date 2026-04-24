@@ -2,7 +2,7 @@ import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 
-import { Bot, BotApp, CustomRoute, FeaturesConfig, TypedDB } from "./types";
+import { BotApp, CustomRoute, FeaturesConfig, TypedDB } from "./types";
 import { UserService } from "./services/user";
 import { BroadcastService } from "./services/broadcast";
 import { ReportService } from "./services/report";
@@ -119,7 +119,7 @@ export class AdminServer<T extends BotApp> {
           const q = String(req.query.query || "");
           const data = await this.userService.search(q);
           res.json(data);
-        } catch (e) {
+        } catch {
           res.status(500).json({ error: "Failed to search users" });
         }
       }
@@ -132,7 +132,7 @@ export class AdminServer<T extends BotApp> {
         try {
           const data = await this.userService.getAll();
           res.json(data);
-        } catch (e) {
+        } catch {
           res.status(500).json({ error: "Failed to get users" });
         }
       }
@@ -146,7 +146,7 @@ export class AdminServer<T extends BotApp> {
           const { id } = req.params;
           const data = await this.userService.getById(id);
           res.json(data);
-        } catch (e) {
+        } catch {
           res.status(500).json({ error: "Failed to search users" });
         }
       }
@@ -159,7 +159,7 @@ export class AdminServer<T extends BotApp> {
           try {
             const data = await this.paymentService.getAllPayments();
             res.json(data);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to get pyments" });
           }
         }
@@ -171,7 +171,7 @@ export class AdminServer<T extends BotApp> {
           try {
             const data = await this.paymentService.getStats();
             res.json(data);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to get pyments" });
           }
         }
@@ -186,7 +186,7 @@ export class AdminServer<T extends BotApp> {
           try {
             const ads = await this.adService.list();
             res.json(ads);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to get ads" });
           }
         }
@@ -203,7 +203,7 @@ export class AdminServer<T extends BotApp> {
               return;
             }
             res.json(ad);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to get ad" });
           }
         }
@@ -216,7 +216,7 @@ export class AdminServer<T extends BotApp> {
           try {
             const ad = await this.adService.create(req.body);
             res.json(ad);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to create ad" });
           }
         }
@@ -236,7 +236,7 @@ export class AdminServer<T extends BotApp> {
               return;
             }
             res.json(updated);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to update ad" });
           }
         }
@@ -249,7 +249,7 @@ export class AdminServer<T extends BotApp> {
           try {
             const ok = await this.adService.delete(req.params.id);
             res.json({ ok });
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to delete ad" });
           }
         }
@@ -268,7 +268,7 @@ export class AdminServer<T extends BotApp> {
               req.body.days
             );
             res.json({ ok: true });
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to extend subscription" });
           }
         }
@@ -282,7 +282,7 @@ export class AdminServer<T extends BotApp> {
           try {
             await this.userService.activatePromo(req.params.id, req.body);
             res.json({ ok: true });
-          } catch (e) {
+          } catch {
             res.status(500).json({
               error: "Failed to activate promo subscription",
             });
@@ -297,7 +297,7 @@ export class AdminServer<T extends BotApp> {
           try {
             await this.userService.deleteSubscription(req.params.id);
             res.json({ ok: true });
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to delete subscription" });
           }
         }
@@ -309,7 +309,7 @@ export class AdminServer<T extends BotApp> {
           try {
             const data = await this.subscriptionService.getAllSubscriptions();
             res.json(data);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to get subscriptions" });
           }
         }
@@ -324,7 +324,7 @@ export class AdminServer<T extends BotApp> {
           try {
             const rows = await this.userService.getReports(req.params.id);
             res.json(rows);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to get user reports" });
           }
         }
@@ -336,7 +336,7 @@ export class AdminServer<T extends BotApp> {
           try {
             const rows = await this.reportService.getAll();
             res.json(rows);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to load reports" });
           }
         }
@@ -349,7 +349,7 @@ export class AdminServer<T extends BotApp> {
             const { reportId } = req.params;
             const data = await this.reportService.getById(reportId);
             res.json(data);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to load reports" });
           }
         }
@@ -372,7 +372,7 @@ export class AdminServer<T extends BotApp> {
 
             await this.reportService.reply(report, text);
             res.json({ ok: true });
-          } catch (e) {
+          } catch {
             console.error("Send error", e);
             res.status(500).json({ error: "send_failed" });
           }
@@ -387,7 +387,7 @@ export class AdminServer<T extends BotApp> {
         try {
           const rows = await this.userService.getStats();
           res.json(rows);
-        } catch (e) {
+        } catch {
           res.status(500).json({ error: "Failed to get statistics" });
         }
       }
@@ -404,7 +404,7 @@ export class AdminServer<T extends BotApp> {
               req.body.promoCode
             );
             res.json({ ok: true });
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to add promocode" });
           }
         }
@@ -461,7 +461,7 @@ export class AdminServer<T extends BotApp> {
             const status = req.query.status as string | undefined;
             const broadcasts = await this.broadcastService.list(status);
             res.json(broadcasts);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to get broadcasts" });
           }
         }
@@ -477,7 +477,7 @@ export class AdminServer<T extends BotApp> {
               return;
             }
             res.json(broadcast);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to get broadcast" });
           }
         }
@@ -504,7 +504,7 @@ export class AdminServer<T extends BotApp> {
           try {
             const b = await this.broadcastService.create(value);
             res.json(b);
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to create broadcast" });
           }
         }
@@ -520,7 +520,7 @@ export class AdminServer<T extends BotApp> {
               return;
             }
             res.json({ ok: true });
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to send test broadcast" });
           }
         }
@@ -559,7 +559,7 @@ export class AdminServer<T extends BotApp> {
               return;
             }
             res.json({ ok: true });
-          } catch (e) {
+          } catch {
             res.status(500).json({ error: "Failed to delete broadcast" });
           }
         }
@@ -581,7 +581,7 @@ export class AdminServer<T extends BotApp> {
 
             const data = await this.refferService.getAll();
             res.json(data);
-          } catch (error) {
+          } catch {
             res.status(500).json({ error: "Failed to get reffers" });
           }
         }

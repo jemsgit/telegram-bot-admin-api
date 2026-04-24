@@ -4,13 +4,12 @@ import type {
   AdminServices,
   AdminBotConfig,
   AdminBotContext,
-  PostContentAd,
 } from "../../types";
 import { safeReply } from "../utils";
 
 export function getAdminPostContentAdListScene(
   services: AdminServices,
-  config: AdminBotConfig,
+  _config: AdminBotConfig,
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>(
     "AdminPostContentAdListScene",

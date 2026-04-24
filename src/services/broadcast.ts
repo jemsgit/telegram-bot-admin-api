@@ -98,6 +98,7 @@ export class BroadcastService {
 
     try {
       await this.scheduleService.cancelBroadcast(id);
+      // eslint-disable-next-line no-empty
     } catch {}
 
     await this.db.deleteBroadcast(id);

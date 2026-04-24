@@ -11,7 +11,7 @@ import type {
 
 export function getAdminPostContentAdCreateScene(
   services: AdminServices,
-  config: AdminBotConfig
+  _config: AdminBotConfig
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>(
     "AdminPostContentAdCreateScene"
@@ -106,7 +106,7 @@ export function getAdminPostContentAdCreateScene(
         );
         break;
 
-      case "priority":
+      case "priority": {
         const priority = parseInt(text);
         if (isNaN(priority) || priority < 1 || priority > 10) {
           await safeReply(
@@ -133,8 +133,9 @@ export function getAdminPostContentAdCreateScene(
           ])
         );
         break;
+      }
 
-      case "perUserLimit":
+      case "perUserLimit": {
         const perUserLimit = parseInt(text);
         if (isNaN(perUserLimit) || perUserLimit < 1) {
           await safeReply(
@@ -153,6 +154,7 @@ export function getAdminPostContentAdCreateScene(
 
         await askForDates(ctx, session);
         break;
+      }
 
       case "startsAt":
         try {
@@ -169,7 +171,7 @@ export function getAdminPostContentAdCreateScene(
               [Markup.button.callback("« Отмена", "cancel_ad")],
             ])
           );
-        } catch (error) {
+        } catch {
           await safeReply(
             ctx,
             "❌ Неверный формат. Используйте: ДД.ММ.ГГГГ ЧЧ:ММ",
@@ -186,7 +188,7 @@ export function getAdminPostContentAdCreateScene(
           session.adDraft!.endsAt = endsAt.toISOString();
 
           await showConfirmation(ctx, session, services);
-        } catch (error) {
+        } catch {
           await safeReply(
             ctx,
             "❌ Неверный формат. Используйте: ДД.ММ.ГГГГ ЧЧ:ММ",
@@ -365,7 +367,7 @@ export function getAdminPostContentAdCreateScene(
       // Очищаем черновик
       session.adDraft = undefined;
       session.adCreateStep = undefined;
-    } catch (error) {
+    } catch {
       console.error("Error creating ad:", error);
       await safeReply(
         ctx,
@@ -440,7 +442,7 @@ async function askForDates(ctx: AdminBotContext, session: any) {
 async function showConfirmation(
   ctx: AdminBotContext,
   session: any,
-  services: AdminServices
+  _services: AdminServices
 ) {
   const draft = session.adDraft!;
 
