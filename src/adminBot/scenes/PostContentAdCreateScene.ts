@@ -11,10 +11,10 @@ import type {
 
 export function getAdminPostContentAdCreateScene(
   services: AdminServices,
-  _config: AdminBotConfig
+  _config: AdminBotConfig,
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>(
-    "AdminPostContentAdCreateScene"
+    "AdminPostContentAdCreateScene",
   );
 
   // Инициализация при входе
@@ -32,7 +32,9 @@ export function getAdminPostContentAdCreateScene(
       ctx,
       "📣 Создание рекламы\n\n" +
         "Шаг 1/6: Введите текст рекламного сообщения:",
-      Markup.inlineKeyboard([[Markup.button.callback("« Отмена", "cancel_ad")]])
+      Markup.inlineKeyboard([
+        [Markup.button.callback("« Отмена", "cancel_ad")],
+      ]),
     );
   });
 
@@ -68,11 +70,11 @@ export function getAdminPostContentAdCreateScene(
             [
               Markup.button.callback(
                 "✅ Выбрать несколько",
-                "showfor_multiple"
+                "showfor_multiple",
               ),
             ],
             [Markup.button.callback("« Отмена", "cancel_ad")],
-          ])
+          ]),
         );
         break;
 
@@ -87,7 +89,7 @@ export function getAdminPostContentAdCreateScene(
               "❌ Введите корректное число или '0' для безлимита:",
               Markup.inlineKeyboard([
                 [Markup.button.callback("« Отмена", "cancel_ad")],
-              ])
+              ]),
             );
             return;
           }
@@ -102,7 +104,7 @@ export function getAdminPostContentAdCreateScene(
           Markup.inlineKeyboard([
             [Markup.button.callback("⏭ Пропустить (1)", "skip_priority")],
             [Markup.button.callback("« Отмена", "cancel_ad")],
-          ])
+          ]),
         );
         break;
 
@@ -115,7 +117,7 @@ export function getAdminPostContentAdCreateScene(
             Markup.inlineKeyboard([
               [Markup.button.callback("⏭ Пропустить (1)", "skip_priority")],
               [Markup.button.callback("« Отмена", "cancel_ad")],
-            ])
+            ]),
           );
           return;
         }
@@ -130,7 +132,7 @@ export function getAdminPostContentAdCreateScene(
           Markup.inlineKeyboard([
             [Markup.button.callback("⏭ Пропустить (1)", "skip_per_user")],
             [Markup.button.callback("« Отмена", "cancel_ad")],
-          ])
+          ]),
         );
         break;
       }
@@ -144,7 +146,7 @@ export function getAdminPostContentAdCreateScene(
             Markup.inlineKeyboard([
               [Markup.button.callback("⏭ Пропустить (1)", "skip_per_user")],
               [Markup.button.callback("« Отмена", "cancel_ad")],
-            ])
+            ]),
           );
           return;
         }
@@ -169,7 +171,7 @@ export function getAdminPostContentAdCreateScene(
             Markup.inlineKeyboard([
               [Markup.button.callback("⏭ Без ограничения", "skip_endsAt")],
               [Markup.button.callback("« Отмена", "cancel_ad")],
-            ])
+            ]),
           );
         } catch {
           await safeReply(
@@ -177,7 +179,7 @@ export function getAdminPostContentAdCreateScene(
             "❌ Неверный формат. Используйте: ДД.ММ.ГГГГ ЧЧ:ММ",
             Markup.inlineKeyboard([
               [Markup.button.callback("« Отмена", "cancel_ad")],
-            ])
+            ]),
           );
         }
         break;
@@ -195,7 +197,7 @@ export function getAdminPostContentAdCreateScene(
             Markup.inlineKeyboard([
               [Markup.button.callback("⏭ Без ограничения", "skip_endsAt")],
               [Markup.button.callback("« Отмена", "cancel_ad")],
-            ])
+            ]),
           );
         }
         break;
@@ -242,7 +244,7 @@ export function getAdminPostContentAdCreateScene(
         ],
         [Markup.button.callback("✅ Готово", "done_showfor")],
         [Markup.button.callback("« Отмена", "cancel_ad")],
-      ])
+      ]),
     );
   });
 
@@ -298,7 +300,7 @@ export function getAdminPostContentAdCreateScene(
       Markup.inlineKeyboard([
         [Markup.button.callback("⏭ Пропустить (1)", "skip_per_user")],
         [Markup.button.callback("« Отмена", "cancel_ad")],
-      ])
+      ]),
     );
   });
 
@@ -324,7 +326,7 @@ export function getAdminPostContentAdCreateScene(
       Markup.inlineKeyboard([
         [Markup.button.callback("⏭ Без ограничения", "skip_endsAt")],
         [Markup.button.callback("« Отмена", "cancel_ad")],
-      ])
+      ]),
     );
   });
 
@@ -361,20 +363,20 @@ export function getAdminPostContentAdCreateScene(
         Markup.inlineKeyboard([
           [Markup.button.callback("« К списку", "back_to_list")],
           [Markup.button.callback("« В меню", "back_to_menu")],
-        ])
+        ]),
       );
 
       // Очищаем черновик
       session.adDraft = undefined;
       session.adCreateStep = undefined;
-    } catch {
+    } catch (error) {
       console.error("Error creating ad:", error);
       await safeReply(
         ctx,
         "⚠️ Ошибка при создании рекламы",
         Markup.inlineKeyboard([
           [Markup.button.callback("« Отмена", "cancel_ad")],
-        ])
+        ]),
       );
     }
   });
@@ -421,7 +423,7 @@ async function askForMaxViews(ctx: AdminBotContext, session: any) {
       .adDraft!.showFor.map((t: string) => getShowForIcon(t))
       .join(" ")}\n\n` +
       "Шаг 3/6: Введите максимальное количество показов (или 0 для безлимита):",
-    Markup.inlineKeyboard([[Markup.button.callback("« Отмена", "cancel_ad")]])
+    Markup.inlineKeyboard([[Markup.button.callback("« Отмена", "cancel_ad")]]),
   );
   session.adCreateStep = "maxViews";
 }
@@ -434,7 +436,7 @@ async function askForDates(ctx: AdminBotContext, session: any) {
     Markup.inlineKeyboard([
       [Markup.button.callback("⏭ С текущего момента", "skip_startsAt")],
       [Markup.button.callback("« Отмена", "cancel_ad")],
-    ])
+    ]),
   );
   session.adCreateStep = "startsAt";
 }
@@ -442,7 +444,7 @@ async function askForDates(ctx: AdminBotContext, session: any) {
 async function showConfirmation(
   ctx: AdminBotContext,
   session: any,
-  _services: AdminServices
+  _services: AdminServices,
 ) {
   const draft = session.adDraft!;
 
@@ -461,7 +463,7 @@ async function showConfirmation(
   if (draft.startsAt) {
     summary.push(
       ``,
-      `Начало: ${new Date(draft.startsAt).toLocaleString("ru")}`
+      `Начало: ${new Date(draft.startsAt).toLocaleString("ru")}`,
     );
   }
   if (draft.endsAt) {
@@ -474,7 +476,7 @@ async function showConfirmation(
     Markup.inlineKeyboard([
       [Markup.button.callback("✅ Создать", "confirm_ad")],
       [Markup.button.callback("❌ Отмена", "cancel_ad")],
-    ])
+    ]),
   );
 
   session.adCreateStep = undefined;

@@ -12,7 +12,7 @@ import type {
 
 export function getAdminPromoCreateScene(
   services: AdminServices,
-  _config: AdminBotConfig
+  _config: AdminBotConfig,
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>("AdminPromoCreateScene");
 
@@ -27,7 +27,7 @@ export function getAdminPromoCreateScene(
         "Шаг 1/5: Введите код промокода (например: SALE20):",
       Markup.inlineKeyboard([
         [Markup.button.callback("« Отмена", "cancel_create")],
-      ])
+      ]),
     );
 
     session.promoCreateStep = "code";
@@ -53,7 +53,7 @@ export function getAdminPromoCreateScene(
             "❌ Промокод с таким кодом уже существует. Введите другой код:",
             Markup.inlineKeyboard([
               [Markup.button.callback("« Отмена", "cancel_create")],
-            ])
+            ]),
           );
           return;
         }
@@ -67,7 +67,7 @@ export function getAdminPromoCreateScene(
             "Шаг 2/5: Введите процент скидки (например: 20):",
           Markup.inlineKeyboard([
             [Markup.button.callback("« Отмена", "cancel_create")],
-          ])
+          ]),
         );
         break;
       }
@@ -80,7 +80,7 @@ export function getAdminPromoCreateScene(
             "❌ Введите корректное число от 1 до 100:",
             Markup.inlineKeyboard([
               [Markup.button.callback("« Отмена", "cancel_create")],
-            ])
+            ]),
           );
           return;
         }
@@ -94,7 +94,7 @@ export function getAdminPromoCreateScene(
             "Шаг 3/5: Введите цену в рублях (или 0 если бесплатно):",
           Markup.inlineKeyboard([
             [Markup.button.callback("« Отмена", "cancel_create")],
-          ])
+          ]),
         );
         break;
       }
@@ -107,7 +107,7 @@ export function getAdminPromoCreateScene(
             "❌ Введите корректное число (0 или больше):",
             Markup.inlineKeyboard([
               [Markup.button.callback("« Отмена", "cancel_create")],
-            ])
+            ]),
           );
           return;
         }
@@ -121,7 +121,7 @@ export function getAdminPromoCreateScene(
           Markup.inlineKeyboard([
             [Markup.button.callback("⏭ Пропустить", "skip_description")],
             [Markup.button.callback("« Отмена", "cancel_create")],
-          ])
+          ]),
         );
         break;
       }
@@ -146,7 +146,7 @@ export function getAdminPromoCreateScene(
             Markup.inlineKeyboard([
               [Markup.button.callback("⏭ Без ограничения", "skip_activeTo")],
               [Markup.button.callback("« Отмена", "cancel_create")],
-            ])
+            ]),
           );
         } catch {
           await safeReply(
@@ -154,7 +154,7 @@ export function getAdminPromoCreateScene(
             "❌ Неверный формат даты. Используйте ДД.ММ.ГГГГ (например: 01.12.2025):",
             Markup.inlineKeyboard([
               [Markup.button.callback("« Отмена", "cancel_create")],
-            ])
+            ]),
           );
         }
         break;
@@ -172,7 +172,7 @@ export function getAdminPromoCreateScene(
             Markup.inlineKeyboard([
               [Markup.button.callback("⏭ Без ограничения", "skip_activeTo")],
               [Markup.button.callback("« Отмена", "cancel_create")],
-            ])
+            ]),
           );
         }
         break;
@@ -200,7 +200,7 @@ export function getAdminPromoCreateScene(
       Markup.inlineKeyboard([
         [Markup.button.callback("⏭ Без ограничения", "skip_activeTo")],
         [Markup.button.callback("« Отмена", "cancel_create")],
-      ])
+      ]),
     );
   });
 
@@ -229,20 +229,20 @@ export function getAdminPromoCreateScene(
         Markup.inlineKeyboard([
           [Markup.button.callback("« К списку", "back_to_list")],
           [Markup.button.callback("« В меню", "back_to_menu")],
-        ])
+        ]),
       );
 
       // Очищаем черновик
       session.promoDraft = undefined;
       session.promoCreateStep = undefined;
-    } catch {
+    } catch (error) {
       console.error("Error creating promo:", error);
       await safeReply(
         ctx,
         "⚠️ Ошибка при создании промокода",
         Markup.inlineKeyboard([
           [Markup.button.callback("« Отмена", "cancel_create")],
-        ])
+        ]),
       );
     }
   });
@@ -290,7 +290,7 @@ async function askForDates(ctx: AdminBotContext, session: any) {
     Markup.inlineKeyboard([
       [Markup.button.callback("⏭ С текущего момента", "skip_activeFrom")],
       [Markup.button.callback("« Отмена", "cancel_create")],
-    ])
+    ]),
   );
   session.promoCreateStep = "activeFrom";
 }
@@ -298,7 +298,7 @@ async function askForDates(ctx: AdminBotContext, session: any) {
 async function showConfirmation(
   ctx: AdminBotContext,
   session: any,
-  _services: AdminServices
+  _services: AdminServices,
 ) {
   const promo = session.promoDraft!;
 
@@ -327,7 +327,7 @@ async function showConfirmation(
     Markup.inlineKeyboard([
       [Markup.button.callback("✅ Создать", "confirm_create")],
       [Markup.button.callback("❌ Отмена", "cancel_create")],
-    ])
+    ]),
   );
 
   session.promoCreateStep = undefined;
