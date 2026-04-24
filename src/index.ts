@@ -7,8 +7,8 @@ import { RefferService } from "./services/reffer";
 import { ReportService } from "./services/report";
 import { SubscriptionService } from "./services/subscriptions";
 import { UserService } from "./services/user";
+import { AdminBot } from "./adminBot/adminBot";
 
-// ESM support
 export {
   AdminServer,
   createAdminServer,
@@ -19,4 +19,5 @@ export {
   ReportService,
   SubscriptionService,
   UserService,
+  AdminBot,
 };

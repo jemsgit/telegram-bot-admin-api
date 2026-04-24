@@ -1,4 +1,4 @@
-import type { TypedDB, Broadcast, Bot } from "../types";
+import type { TypedDB, Broadcast, BotApp } from "../types";
 
 const dayInMs = 24 * 60 * 60 * 1000;
 
@@ -23,7 +23,7 @@ export class BroadcastService {
       ) => Promise<boolean>;
       cancelBroadcast: (id: string) => Promise<void>;
     },
-    private bot: Bot
+    private bot: BotApp
   ) {}
 
   async list(status?: string | null): Promise<Broadcast[]> {
@@ -61,6 +61,7 @@ export class BroadcastService {
 
   async sendTest(id: string): Promise<boolean | null> {
     const broadcast = await this.get(id);
+    console.log(broadcast);
     if (!broadcast) return null;
 
     await this.bot.sendTestBroadcast(broadcast);
@@ -86,8 +87,7 @@ export class BroadcastService {
     );
     if (!canEdit) throw new Error("cant modify");
 
-    // Assuming broadcast has save method (Mongoose doc)
-    await (broadcast as any).save();
+    await this.db.saveBroadcast(broadcast);
 
     return broadcast;
   }

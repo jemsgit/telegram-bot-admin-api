@@ -68,5 +68,5 @@ export interface User {
   refLink?: string;
   createdAt: Date;
   promoCode?: string;
-  subscription?: string;
+  subscription?: Subscription | string;
 }

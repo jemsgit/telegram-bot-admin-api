@@ -1,3 +1,4 @@
+import { PostContentAd, PostContentAdView } from ".";
 import type {
   Broadcast,
   Payment,
@@ -71,4 +72,21 @@ export interface TypedDB {
   // Referral methods
   getRefferals: () => Promise<any[]>;
   countRefferalsByRefLink: (link: string) => Promise<any>;
+
+  // Ads methods
+  getAds: (filter?: Partial<PostContentAd>) => Promise<PostContentAd[]>;
+  getAdById: (id: string) => Promise<PostContentAd | null>;
+  createAd: (data: PostContentAd) => Promise<PostContentAd>;
+  updateAd: (
+    id: string,
+    data: Partial<PostContentAd>
+  ) => Promise<PostContentAd | null>;
+  deleteAd: (id: string) => Promise<boolean>;
+
+  addAdViewToUser: (userId: string, adId: string) => Promise<PostContentAdView>;
+
+  getAdForUser: (
+    userId: string,
+    type: "image" | "video" | "audio" | "text" | "any"
+  ) => Promise<PostContentAd | null>;
 }

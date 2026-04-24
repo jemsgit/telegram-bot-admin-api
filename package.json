@@ -1,6 +1,6 @@
 {
   "name": "telegram-admin-server",
-  "version": "0.0.2",
+  "version": "0.0.6",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
   "types": "lib/types/index.d.ts",
@@ -19,9 +19,12 @@
     "build": "npm run build:cjs && npm run build:esm && npm run build:types",
     "build:cjs": "tsc --module commonjs --outDir lib/cjs && babel lib/cjs --out-dir lib/cjs",
     "build:cjs-only": "tsc src/index.cjs.ts --outDir lib/cjs --module commonjs",
-    "build:esm": "tsc --module esnext --outDir lib/esm",
+    "build:esm": "tsc --module preserve --moduleResolution bundler --outDir lib/esm",
     "build:types": "tsc --emitDeclarationOnly --outDir lib/types",
     "dev": "tsc --watch --noEmit",
+    "dev:build": "tsc --watch --module commonjs --outDir lib/cjs",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "link": "npm link",
     "pack": "npm run build && npm pack",
     "prepublishOnly": "npm run build"
@@ -31,15 +34,29 @@
     "@babel/core": "^7.24.0",
     "@babel/preset-env": "^7.24.0",
     "@babel/preset-typescript": "^7.24.0",
+    "@eslint/js": "9",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
     "@types/node": "^24.10.1",
-    "typescript": "^5.4.0"
+    "eslint": "9",
+    "globals": "^17.5.0",
+    "telegraf": "^4.16.3",
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.59.0"
   },
   "dependencies": {
     "body-parser": "^2.2.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "joi": "^18.0.2",
+    "joi": "^18.0.2"
+  },
+  "peerDependencies": {
     "telegraf": "^4.16.3"
-  }
+  },
+  "peerDependenciesMeta": {
+    "telegraf": {
+      "optional": false
+    }
+  },
+  "packageManager": "yarn@4.1.1"
 }

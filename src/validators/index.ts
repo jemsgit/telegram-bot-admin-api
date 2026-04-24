@@ -145,8 +145,6 @@ export const validatePromoCreate = (
   next();
 };
 
-broadcastValidationSchema;
-
 export default {
   validateDays,
   validateReply,

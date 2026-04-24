@@ -7,6 +7,7 @@ const { RefferService } = require("./services/reffer");
 const { ReportService } = require("./services/report");
 const { SubscriptionService } = require("./services/subscriptions");
 const { UserService } = require("./services/user");
+const { AdminBot } = require("./adminBot/adminBot");
 
 module.exports = {
   AdminServer,
@@ -18,4 +19,5 @@ module.exports = {
   ReportService,
   SubscriptionService,
   UserService,
+  AdminBot,
 };

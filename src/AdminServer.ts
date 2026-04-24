@@ -2,7 +2,7 @@ import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 
-import { Bot, CustomRoute, FeaturesConfig, TypedDB } from "./types";
+import { Bot, BotApp, CustomRoute, FeaturesConfig, TypedDB } from "./types";
 import { UserService } from "./services/user";
 import { BroadcastService } from "./services/broadcast";
 import { ReportService } from "./services/report";
@@ -17,6 +17,7 @@ import {
   validatePromoCode,
   broadcastValidationSchema,
 } from "./validators";
+import { PostContentService } from "./services/postcontent";
 
 const defaultFeaturesConfig: FeaturesConfig = {
   broadcast: true,
@@ -25,6 +26,7 @@ const defaultFeaturesConfig: FeaturesConfig = {
   reports: true,
   referral: true,
   payments: true,
+  postcontentAd: true,
 };
 
 type AdminServerFeaturesConfig = FeaturesConfig & {
@@ -37,7 +39,7 @@ type AdminServerOptions = {
   port?: number;
 };
 
-export class AdminServer<T extends Bot> {
+export class AdminServer<T extends BotApp> {
   private app: Express;
   private adminApiKey: string | undefined;
 
@@ -48,6 +50,7 @@ export class AdminServer<T extends Bot> {
   private subscriptionService: SubscriptionService;
   private refferService: RefferService;
   private paymentService: PaymentService;
+  private adService: PostContentService;
 
   private port: number;
 
@@ -73,6 +76,7 @@ export class AdminServer<T extends Bot> {
     this.subscriptionService = new SubscriptionService(this.db);
     this.refferService = new RefferService(this.db);
     this.paymentService = new PaymentService(this.db);
+    this.adService = new PostContentService(this.db);
 
     this.app = express();
     this.app.use(
@@ -93,6 +97,9 @@ export class AdminServer<T extends Bot> {
   }
 
   private apiAuth(req: Request, res: Response, next: NextFunction) {
+    if (!this.adminApiKey) {
+      return res.status(500).json({ error: "ADMIN_API_TOKEN is not configured" });
+    }
     const key =
       req.header("x-api-key") || req.header("authorization")?.split(" ")[1];
     if (key !== this.adminApiKey) {
@@ -118,6 +125,19 @@ export class AdminServer<T extends Bot> {
       }
     );
 
+    // Все пользователи — должен быть до /api/users/:id, иначе Express матчит "all" как id
+    app.get(
+      "/api/users/all",
+      async (_req: Request, res: Response): Promise<void> => {
+        try {
+          const data = await this.userService.getAll();
+          res.json(data);
+        } catch (e) {
+          res.status(500).json({ error: "Failed to get users" });
+        }
+      }
+    );
+
     // 1.1 Получить пользователя по id
     app.get(
       "/api/users/:id",
@@ -128,19 +148,6 @@ export class AdminServer<T extends Bot> {
           res.json(data);
         } catch (e) {
           res.status(500).json({ error: "Failed to search users" });
-        }
-      }
-    );
-
-    // Все пользователи
-    app.get(
-      "/api/users/all",
-      async (_req: Request, res: Response): Promise<void> => {
-        try {
-          const data = await this.userService.getAll();
-          res.json(data);
-        } catch (e) {
-          res.status(500).json({ error: "Failed to get users" });
         }
       }
     );
@@ -166,6 +173,84 @@ export class AdminServer<T extends Bot> {
             res.json(data);
           } catch (e) {
             res.status(500).json({ error: "Failed to get pyments" });
+          }
+        }
+      );
+    }
+
+    if (config.postcontentAd) {
+      // Получить список реклам
+      app.get(
+        "/api/ads",
+        async (_req: Request, res: Response): Promise<void> => {
+          try {
+            const ads = await this.adService.list();
+            res.json(ads);
+          } catch (e) {
+            res.status(500).json({ error: "Failed to get ads" });
+          }
+        }
+      );
+
+      // Получить рекламу по id
+      app.get(
+        "/api/ads/:id",
+        async (req: Request, res: Response): Promise<void> => {
+          try {
+            const ad = await this.adService.get(req.params.id);
+            if (!ad) {
+              res.status(404).json({ error: "not found" });
+              return;
+            }
+            res.json(ad);
+          } catch (e) {
+            res.status(500).json({ error: "Failed to get ad" });
+          }
+        }
+      );
+
+      // Создать рекламу
+      app.post(
+        "/api/ads",
+        async (req: Request, res: Response): Promise<void> => {
+          try {
+            const ad = await this.adService.create(req.body);
+            res.json(ad);
+          } catch (e) {
+            res.status(500).json({ error: "Failed to create ad" });
+          }
+        }
+      );
+
+      // Обновить рекламу
+      app.patch(
+        "/api/ads/:id",
+        async (req: Request, res: Response): Promise<void> => {
+          try {
+            const updated = await this.adService.update(
+              req.params.id,
+              req.body
+            );
+            if (!updated) {
+              res.status(404).json({ error: "not found" });
+              return;
+            }
+            res.json(updated);
+          } catch (e) {
+            res.status(500).json({ error: "Failed to update ad" });
+          }
+        }
+      );
+
+      // Удалить рекламу
+      app.delete(
+        "/api/ads/:id",
+        async (req: Request, res: Response): Promise<void> => {
+          try {
+            const ok = await this.adService.delete(req.params.id);
+            res.json({ ok });
+          } catch (e) {
+            res.status(500).json({ error: "Failed to delete ad" });
           }
         }
       );
@@ -225,7 +310,7 @@ export class AdminServer<T extends Bot> {
             const data = await this.subscriptionService.getAllSubscriptions();
             res.json(data);
           } catch (e) {
-            res.status(500).json({ error: "Failed to extend subscription" });
+            res.status(500).json({ error: "Failed to get subscriptions" });
           }
         }
       );
@@ -343,13 +428,14 @@ export class AdminServer<T extends Bot> {
         async (req: Request, res: Response): Promise<void> => {
           try {
             const code = req.params.code;
-            await this.promocodeService.delete(code);
-            res.json({
-              ok: true,
-              message: `Промокод ${code} удалён`,
-            });
+            const deleted = await this.promocodeService.delete(code);
+            if (!deleted) {
+              res.status(404).json({ error: `Промокод ${code} не найден` });
+              return;
+            }
+            res.json({ ok: true, message: `Промокод ${code} удалён` });
           } catch (error: any) {
-            res.status(404).json({ error: error.message });
+            res.status(500).json({ error: error.message });
           }
         }
       );
@@ -384,11 +470,16 @@ export class AdminServer<T extends Bot> {
       app.get(
         "/api/broadcasts/:id",
         async (req: Request, res: Response): Promise<void> => {
-          const broadcast = await this.broadcastService.get(req.params.id);
-          if (!broadcast) {
-            res.status(404).json({ error: "Broadcast not found" });
+          try {
+            const broadcast = await this.broadcastService.get(req.params.id);
+            if (!broadcast) {
+              res.status(404).json({ error: "Broadcast not found" });
+              return;
+            }
+            res.json(broadcast);
+          } catch (e) {
+            res.status(500).json({ error: "Failed to get broadcast" });
           }
-          res.json(broadcast);
         }
       );
 
@@ -422,12 +513,16 @@ export class AdminServer<T extends Bot> {
       app.post(
         "/api/broadcasts/:id/send-test",
         async (req: Request, res: Response): Promise<void> => {
-          const ok = await this.broadcastService.sendTest(req.params.id);
-          if (!ok) {
-            res.status(404).json({ error: "not found" });
-            return;
+          try {
+            const ok = await this.broadcastService.sendTest(req.params.id);
+            if (!ok) {
+              res.status(404).json({ error: "not found" });
+              return;
+            }
+            res.json({ ok: true });
+          } catch (e) {
+            res.status(500).json({ error: "Failed to send test broadcast" });
           }
-          res.json({ ok: true });
         }
       );
 
@@ -457,12 +552,16 @@ export class AdminServer<T extends Bot> {
       app.delete(
         "/api/broadcasts/:id",
         async (req: Request, res: Response): Promise<void> => {
-          const ok = await this.broadcastService.delete(req.params.id);
-          if (!ok) {
-            res.status(404).json({ error: "not found" });
-            return;
+          try {
+            const ok = await this.broadcastService.delete(req.params.id);
+            if (!ok) {
+              res.status(404).json({ error: "not found" });
+              return;
+            }
+            res.json({ ok: true });
+          } catch (e) {
+            res.status(500).json({ error: "Failed to delete broadcast" });
           }
-          res.json({ ok: true });
         }
       );
     }

@@ -1,4 +1,4 @@
-import type { Bot, CustomRoute, FeaturesConfig } from "./types";
+import type { BotApp, CustomRoute, FeaturesConfig } from "./types";
 import { AdminServer } from "./AdminServer";
 import { TypedDB } from "./types/db";
 
@@ -10,7 +10,7 @@ interface CreateAdminServerOptions {
   baseUrl?: string;
 }
 
-function createAdminServer<B extends Bot = Bot>(
+function createAdminServer<B extends BotApp = BotApp>(
   bot: B,
   db: TypedDB,
   scheduler: any,
