@@ -1,6 +1,6 @@
 {
   "name": "telegraf-admin-for-bots",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
   "types": "lib/types/index.d.ts",
