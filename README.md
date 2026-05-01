@@ -1,4 +1,4 @@
-# telegram-admin-server
+# telegraf-admin-for-bots
 
 Библиотека для быстрого добавления административного интерфейса в Telegram-бот. Предоставляет два компонента:
 
@@ -24,10 +24,10 @@
 
 ```bash
 # npm
-npm install telegram-admin-server
+npm install telegraf-admin-for-bots
 
 # yarn
-yarn add telegram-admin-server
+yarn add telegraf-admin-for-bots
 ```
 
 Пакет требует `telegraf` как peer dependency:
@@ -52,10 +52,16 @@ interface TypedDB {
   getUsers(): Promise<User[]>;
   getUserStats(): Promise<any>;
   extendSubscription(userId: string | number, days: number): Promise<boolean>;
-  activatePromoSubscription(userId: string | number, data: { days: number }): Promise<boolean>;
+  activatePromoSubscription(
+    userId: string | number,
+    data: { days: number },
+  ): Promise<boolean>;
   deleteSubscription(userId: string | number): Promise<boolean>;
   getUserReports(userId: string | number): Promise<UserReport[]>;
-  addPromoCodeToUser(userId: string | number, promoCode: string): Promise<boolean>;
+  addPromoCodeToUser(
+    userId: string | number,
+    promoCode: string,
+  ): Promise<boolean>;
 
   // Подписки
   getAllSubscriptions(): Promise<Subscription[]>;
@@ -63,7 +69,11 @@ interface TypedDB {
   // Обращения
   getReports(): Promise<UserReport[]>;
   getReportById(reportId: string): Promise<UserReport | null>;
-  saveReportReply(reportId: string, author: string, text: string): Promise<void>;
+  saveReportReply(
+    reportId: string,
+    author: string,
+    text: string,
+  ): Promise<void>;
 
   // Рассылки
   getAllBroadcasts(status?: string | null): Promise<Broadcast[]>;
@@ -72,13 +82,18 @@ interface TypedDB {
   deleteBroadcast(id: string): Promise<boolean>;
 
   // Промокоды
-  createPromoCode(data: Omit<Promo, 'isActive'> & { isActive?: boolean }): Promise<Promo>;
+  createPromoCode(
+    data: Omit<Promo, "isActive"> & { isActive?: boolean },
+  ): Promise<Promo>;
   deletePromocode(code: string): Promise<boolean>;
   getAllPromoCodes(): Promise<Promo[]>;
 
   // Платежи
   getAllPayments(): Promise<Payment[]>;
-  getPaymentsStats(): Promise<{ currentMonth: PaymentStats; lastMonth: PaymentStats }>;
+  getPaymentsStats(): Promise<{
+    currentMonth: PaymentStats;
+    lastMonth: PaymentStats;
+  }>;
 
   // Рефералы
   getRefferals(): Promise<any[]>;
@@ -88,7 +103,10 @@ interface TypedDB {
   getAds(filter?: Partial<PostContentAd>): Promise<PostContentAd[]>;
   getAdById(id: string): Promise<PostContentAd | null>;
   createAd(data: PostContentAd): Promise<PostContentAd>;
-  updateAd(id: string, data: Partial<PostContentAd>): Promise<PostContentAd | null>;
+  updateAd(
+    id: string,
+    data: Partial<PostContentAd>,
+  ): Promise<PostContentAd | null>;
   deleteAd(id: string): Promise<boolean>;
   addAdViewToUser(userId: string, adId: string): Promise<PostContentAdView>;
   getAdForUser(userId: string, type: string): Promise<PostContentAd | null>;
@@ -101,8 +119,8 @@ interface TypedDB {
 
 ```typescript
 interface BotApp {
-  bot: Telegraf<any>;                                          // Экземпляр Telegraf
-  sendTestBroadcast(broadcast: Broadcast): void;              // Отправить тестовую рассылку себе
+  bot: Telegraf<any>; // Экземпляр Telegraf
+  sendTestBroadcast(broadcast: Broadcast): void; // Отправить тестовую рассылку себе
   replyToUserReport(userId: number, message: string, text: string): void; // Ответить на обращение
 }
 ```
@@ -116,13 +134,14 @@ interface BotApp {
 ### Подключение
 
 ```javascript
-const { AdminBot } = require('telegram-admin-server');
+const { AdminBot } = require("telegram-admin-server");
 
 class MyAdminBot {
   constructor(bot, db, scheduleService) {
     this.adminBot = new AdminBot(
-      bot,               // BotApp — объект с полями bot, sendTestBroadcast, replyToUserReport
-      {                  // AdminBotConfig — включить/выключить модули
+      bot, // BotApp — объект с полями bot, sendTestBroadcast, replyToUserReport
+      {
+        // AdminBotConfig — включить/выключить модули
         broadcast: true,
         subscriptions: true,
         promocodes: true,
@@ -131,10 +150,10 @@ class MyAdminBot {
         payments: true,
         postcontentAd: true,
       },
-      [123456789],       // Массив Telegram ID администраторов
-      db,                // Объект TypedDB
-      scheduleService,   // Сервис планировщика рассылок
-      []                 // Кастомные сцены (см. раздел расширения)
+      [123456789], // Массив Telegram ID администраторов
+      db, // Объект TypedDB
+      scheduleService, // Сервис планировщика рассылок
+      [], // Кастомные сцены (см. раздел расширения)
     );
   }
 
@@ -147,24 +166,24 @@ class MyAdminBot {
 
 ### Команды бота
 
-| Команда | Описание |
-|---------|----------|
+| Команда  | Описание                            |
+| -------- | ----------------------------------- |
 | `/admin` | Открыть главное меню администратора |
-| `/user` | Вернуться в пользовательский режим |
+| `/user`  | Вернуться в пользовательский режим  |
 
 ### Главное меню
 
 Кнопки в меню отображаются динамически в зависимости от включённых модулей:
 
-| Кнопка | Модуль | Описание |
-|--------|--------|----------|
-| 👥 Пользователи | всегда | Поиск, просмотр профиля, управление подпиской |
-| 📊 Статистика | всегда | Сводка по пользователям и платежам |
-| 📢 Рассылки | `broadcast` | Создание и управление рассылками |
-| 📝 Обращения | `reports` | Просмотр и ответ на сообщения пользователей |
-| 🎁 Промокоды | `promocodes` | Создание и удаление промокодов |
-| 💰 Платежи | `payments` | История и статистика платежей |
-| 📈 Инлайн реклама | `postcontentAd` | Управление встроенной рекламой в постах |
+| Кнопка            | Модуль          | Описание                                      |
+| ----------------- | --------------- | --------------------------------------------- |
+| 👥 Пользователи   | всегда          | Поиск, просмотр профиля, управление подпиской |
+| 📊 Статистика     | всегда          | Сводка по пользователям и платежам            |
+| 📢 Рассылки       | `broadcast`     | Создание и управление рассылками              |
+| 📝 Обращения      | `reports`       | Просмотр и ответ на сообщения пользователей   |
+| 🎁 Промокоды      | `promocodes`    | Создание и удаление промокодов                |
+| 💰 Платежи        | `payments`      | История и статистика платежей                 |
+| 📈 Инлайн реклама | `postcontentAd` | Управление встроенной рекламой в постах       |
 
 ---
 
@@ -175,18 +194,18 @@ class MyAdminBot {
 ### Подключение через `createAdminServer`
 
 ```javascript
-const { createAdminServer } = require('telegram-admin-server');
+const { createAdminServer } = require("telegram-admin-server");
 
 const adminServer = createAdminServer(
-  bot,           // BotApp
-  db,            // TypedDB
-  scheduler,     // Сервис планировщика
+  bot, // BotApp
+  db, // TypedDB
+  scheduler, // Сервис планировщика
   {
-    port: 3105,                        // Порт (по умолчанию 3105)
-    features: { broadcast: true },     // Включённые функции (по умолчанию все включены)
-    baseUrl: 'https://my-domain.com',  // Базовый URL (опционально)
-    customRoutes: [],                  // Кастомные роуты (см. раздел расширения)
-  }
+    port: 3105, // Порт (по умолчанию 3105)
+    features: { broadcast: true }, // Включённые функции (по умолчанию все включены)
+    baseUrl: "https://my-domain.com", // Базовый URL (опционально)
+    customRoutes: [], // Кастомные роуты (см. раздел расширения)
+  },
 );
 
 adminServer.start();
@@ -194,8 +213,8 @@ adminServer.start();
 
 ### Переменные окружения
 
-| Переменная | Описание |
-|------------|----------|
+| Переменная        | Описание                                               |
+| ----------------- | ------------------------------------------------------ |
 | `ADMIN_API_TOKEN` | Токен для авторизации запросов к API (**обязательно**) |
 
 ### Авторизация
@@ -215,12 +234,12 @@ Authorization: Bearer your-token
 
 ```typescript
 {
-  broadcast: boolean;     // Рассылки
+  broadcast: boolean; // Рассылки
   subscriptions: boolean; // Управление подписками
-  promocodes: boolean;    // Промокоды
-  reports: boolean;       // Обращения пользователей
-  referral: boolean;      // Реферальная система
-  payments: boolean;      // Платежи
+  promocodes: boolean; // Промокоды
+  reports: boolean; // Обращения пользователей
+  referral: boolean; // Реферальная система
+  payments: boolean; // Платежи
   postcontentAd: boolean; // Инлайн-реклама в постах
 }
 ```
@@ -235,42 +254,43 @@ Authorization: Bearer your-token
 
 ### Пользователи
 
-| Метод | Путь | Описание |
-|-------|------|----------|
-| `GET` | `/api/users?query=...` | Поиск пользователей |
-| `GET` | `/api/users/all` | Все пользователи |
-| `GET` | `/api/users/:id` | Пользователь по ID |
-| `GET` | `/api/stats` | Статистика (пользователи, платежи) |
+| Метод | Путь                   | Описание                           |
+| ----- | ---------------------- | ---------------------------------- |
+| `GET` | `/api/users?query=...` | Поиск пользователей                |
+| `GET` | `/api/users/all`       | Все пользователи                   |
+| `GET` | `/api/users/:id`       | Пользователь по ID                 |
+| `GET` | `/api/stats`           | Статистика (пользователи, платежи) |
 
-### Подписки *(требует `subscriptions: true`)*
+### Подписки _(требует `subscriptions: true`)_
 
-| Метод | Путь | Тело | Описание |
-|-------|------|------|----------|
-| `GET` | `/api/subscriptions` | — | Список всех подписок |
-| `POST` | `/api/users/:id/extend-subscription` | `{ days: number }` | Продлить подписку |
-| `POST` | `/api/users/:id/activate-promo-subscription` | `{ days: number }` | Активировать промо-подписку |
-| `DELETE` | `/api/users/:id/subscription` | — | Удалить подписку |
+| Метод    | Путь                                         | Тело               | Описание                    |
+| -------- | -------------------------------------------- | ------------------ | --------------------------- |
+| `GET`    | `/api/subscriptions`                         | —                  | Список всех подписок        |
+| `POST`   | `/api/users/:id/extend-subscription`         | `{ days: number }` | Продлить подписку           |
+| `POST`   | `/api/users/:id/activate-promo-subscription` | `{ days: number }` | Активировать промо-подписку |
+| `DELETE` | `/api/users/:id/subscription`                | —                  | Удалить подписку            |
 
-### Обращения *(требует `reports: true`)*
+### Обращения _(требует `reports: true`)_
 
-| Метод | Путь | Тело | Описание |
-|-------|------|------|----------|
-| `GET` | `/api/reports` | — | Все обращения |
-| `GET` | `/api/reports/:reportId` | — | Обращение по ID |
-| `POST` | `/api/reports/:reportId/reply` | `{ text: string }` | Ответить на обращение |
-| `GET` | `/api/users/:id/reports` | — | Обращения конкретного пользователя |
+| Метод  | Путь                           | Тело               | Описание                           |
+| ------ | ------------------------------ | ------------------ | ---------------------------------- |
+| `GET`  | `/api/reports`                 | —                  | Все обращения                      |
+| `GET`  | `/api/reports/:reportId`       | —                  | Обращение по ID                    |
+| `POST` | `/api/reports/:reportId/reply` | `{ text: string }` | Ответить на обращение              |
+| `GET`  | `/api/users/:id/reports`       | —                  | Обращения конкретного пользователя |
 
-### Рассылки *(требует `broadcast: true`)*
+### Рассылки _(требует `broadcast: true`)_
 
-| Метод | Путь | Описание |
-|-------|------|----------|
-| `GET` | `/api/broadcasts?status=...` | Список рассылок (фильтр по статусу: `pending`, `progress`, `done`, `cancelled`) |
-| `GET` | `/api/broadcasts/:id` | Рассылка по ID |
-| `POST` | `/api/broadcasts` | Создать рассылку |
-| `DELETE` | `/api/broadcasts/:id` | Удалить рассылку |
-| `POST` | `/api/broadcasts/:id/send-test` | Отправить тестовую рассылку |
+| Метод    | Путь                            | Описание                                                                        |
+| -------- | ------------------------------- | ------------------------------------------------------------------------------- |
+| `GET`    | `/api/broadcasts?status=...`    | Список рассылок (фильтр по статусу: `pending`, `progress`, `done`, `cancelled`) |
+| `GET`    | `/api/broadcasts/:id`           | Рассылка по ID                                                                  |
+| `POST`   | `/api/broadcasts`               | Создать рассылку                                                                |
+| `DELETE` | `/api/broadcasts/:id`           | Удалить рассылку                                                                |
+| `POST`   | `/api/broadcasts/:id/send-test` | Отправить тестовую рассылку                                                     |
 
 Тело для создания рассылки:
+
 ```json
 {
   "title": "Название",
@@ -283,37 +303,37 @@ Authorization: Bearer your-token
 }
 ```
 
-### Промокоды *(требует `promocodes: true`)*
+### Промокоды _(требует `promocodes: true`)_
 
-| Метод | Путь | Описание |
-|-------|------|----------|
-| `GET` | `/api/promocodes` | Все промокоды |
-| `POST` | `/api/promocodes` | Создать промокод |
-| `DELETE` | `/api/promocodes/:code` | Удалить промокод |
-| `POST` | `/api/users/:id/promocode` | Применить промокод к пользователю |
+| Метод    | Путь                       | Описание                          |
+| -------- | -------------------------- | --------------------------------- |
+| `GET`    | `/api/promocodes`          | Все промокоды                     |
+| `POST`   | `/api/promocodes`          | Создать промокод                  |
+| `DELETE` | `/api/promocodes/:code`    | Удалить промокод                  |
+| `POST`   | `/api/users/:id/promocode` | Применить промокод к пользователю |
 
-### Платежи *(требует `payments: true`)*
+### Платежи _(требует `payments: true`)_
 
-| Метод | Путь | Описание |
-|-------|------|----------|
-| `GET` | `/api/payments` | Все платежи |
+| Метод | Путь                  | Описание                              |
+| ----- | --------------------- | ------------------------------------- |
+| `GET` | `/api/payments`       | Все платежи                           |
 | `GET` | `/api/payments/stats` | Статистика за текущий и прошлый месяц |
 
-### Инлайн-реклама *(требует `postcontentAd: true`)*
+### Инлайн-реклама _(требует `postcontentAd: true`)_
 
-| Метод | Путь | Описание |
-|-------|------|----------|
-| `GET` | `/api/ads` | Список рекламных блоков |
-| `GET` | `/api/ads/:id` | Рекламный блок по ID |
-| `POST` | `/api/ads` | Создать рекламный блок |
-| `PATCH` | `/api/ads/:id` | Обновить рекламный блок |
-| `DELETE` | `/api/ads/:id` | Удалить рекламный блок |
+| Метод    | Путь           | Описание                |
+| -------- | -------------- | ----------------------- |
+| `GET`    | `/api/ads`     | Список рекламных блоков |
+| `GET`    | `/api/ads/:id` | Рекламный блок по ID    |
+| `POST`   | `/api/ads`     | Создать рекламный блок  |
+| `PATCH`  | `/api/ads/:id` | Обновить рекламный блок |
+| `DELETE` | `/api/ads/:id` | Удалить рекламный блок  |
 
-### Рефералы *(требует `referral: true`)*
+### Рефералы _(требует `referral: true`)_
 
-| Метод | Путь | Описание |
-|-------|------|----------|
-| `GET` | `/api/referrals` | Все рефералы |
+| Метод | Путь                      | Описание                         |
+| ----- | ------------------------- | -------------------------------- |
+| `GET` | `/api/referrals`          | Все рефералы                     |
 | `GET` | `/api/referrals?link=...` | Статистика по реферальной ссылке |
 
 ---
@@ -323,54 +343,47 @@ Authorization: Bearer your-token
 Можно добавить собственные Telegraf-сцены в меню администратора. Они отображаются как кнопки в главном меню и полностью доступны внутри admin-контекста.
 
 ```javascript
-const { Scenes } = require('telegraf');
+const { Scenes } = require("telegraf");
 
 // Создаём кастомную сцену
-const MyCustomScene = new Scenes.BaseScene('MyCustomScene');
+const MyCustomScene = new Scenes.BaseScene("MyCustomScene");
 
 MyCustomScene.enter(async (ctx) => {
-  await ctx.reply('Добро пожаловать в кастомный раздел!');
+  await ctx.reply("Добро пожаловать в кастомный раздел!");
 });
 
-MyCustomScene.on('text', async (ctx) => {
+MyCustomScene.on("text", async (ctx) => {
   // ctx.services — доступны все сервисы библиотеки
   const users = await ctx.services.userService.getAll();
   await ctx.reply(`Всего пользователей: ${users.length}`);
-  await ctx.scene.enter('MainAdminMenuScene');
+  await ctx.scene.enter("MainAdminMenuScene");
 });
 
 // Передаём сцену при создании AdminBot
-const adminBot = new AdminBot(
-  bot,
-  config,
-  [ADMIN_ID],
-  db,
-  scheduler,
-  [
-    {
-      name: 'MyCustomScene',       // Имя сцены (должно совпадать с именем в BaseScene)
-      scene: MyCustomScene,        // Экземпляр сцены
-      buttonText: '🔧 Мой раздел', // Кнопка в главном меню (опционально)
-    },
-    {
-      name: 'MyChildScene',        // Дочерняя сцена без кнопки в главном меню
-      scene: MyChildScene,
-    },
-  ]
-);
+const adminBot = new AdminBot(bot, config, [ADMIN_ID], db, scheduler, [
+  {
+    name: "MyCustomScene", // Имя сцены (должно совпадать с именем в BaseScene)
+    scene: MyCustomScene, // Экземпляр сцены
+    buttonText: "🔧 Мой раздел", // Кнопка в главном меню (опционально)
+  },
+  {
+    name: "MyChildScene", // Дочерняя сцена без кнопки в главном меню
+    scene: MyChildScene,
+  },
+]);
 ```
 
 Внутри кастомных сцен через `ctx` доступны все сервисы библиотеки:
 
 ```javascript
-ctx.services.userService        // UserService
-ctx.services.broadcastService   // BroadcastService
-ctx.services.reportService      // ReportService
-ctx.services.promocodeService   // PromocodeService
-ctx.services.subscriptionService
-ctx.services.refferService
-ctx.services.paymentService
-ctx.services.postContentService
+ctx.services.userService; // UserService
+ctx.services.broadcastService; // BroadcastService
+ctx.services.reportService; // ReportService
+ctx.services.promocodeService; // PromocodeService
+ctx.services.subscriptionService;
+ctx.services.refferService;
+ctx.services.paymentService;
+ctx.services.postContentService;
 ```
 
 ---
@@ -383,16 +396,16 @@ ctx.services.postContentService
 const adminServer = createAdminServer(bot, db, scheduler, {
   customRoutes: [
     {
-      method: 'get',
-      path: '/api/my-stats',
+      method: "get",
+      path: "/api/my-stats",
       handler: async (req, res, next, bot, db) => {
         const users = await db.getUsers();
         res.json({ count: users.length });
       },
     },
     {
-      method: 'post',
-      path: '/api/notify',
+      method: "post",
+      path: "/api/notify",
       handler: async (req, res, next, bot, db) => {
         const { userId, message } = req.body;
         await bot.bot.telegram.sendMessage(userId, message);
@@ -405,10 +418,10 @@ const adminServer = createAdminServer(bot, db, scheduler, {
 
 Обработчик получает:
 
-| Аргумент | Тип | Описание |
-|----------|-----|----------|
-| `req` | `Express.Request` | Запрос |
-| `res` | `Express.Response` | Ответ |
-| `next` | `NextFunction` | Express next |
-| `bot` | `BotApp` | Объект вашего бота |
-| `db` | `TypedDB` | Объект базы данных |
+| Аргумент | Тип                | Описание           |
+| -------- | ------------------ | ------------------ |
+| `req`    | `Express.Request`  | Запрос             |
+| `res`    | `Express.Response` | Ответ              |
+| `next`   | `NextFunction`     | Express next       |
+| `bot`    | `BotApp`           | Объект вашего бота |
+| `db`     | `TypedDB`          | Объект базы данных |

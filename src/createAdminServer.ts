@@ -7,21 +7,19 @@ interface CreateAdminServerOptions {
   features?: Partial<FeaturesConfig>;
   customRoutes?: Array<CustomRoute>;
   customRoutesConfig?: any[];
-  baseUrl?: string;
 }
 
 function createAdminServer<B extends BotApp = BotApp>(
   bot: B,
   db: TypedDB,
   scheduler: any,
-  options: CreateAdminServerOptions = {}
+  options: CreateAdminServerOptions = {},
 ): AdminServer<B> {
   const {
     port = 3105,
     features = {},
     customRoutes = [],
     customRoutesConfig = [],
-    baseUrl,
   } = options;
 
   const adminServer = new AdminServer(
@@ -31,9 +29,8 @@ function createAdminServer<B extends BotApp = BotApp>(
     { customRoutes, port },
     {
       ...features,
-      base: baseUrl,
       customRoutesConfig,
-    }
+    },
   );
 
   return adminServer;

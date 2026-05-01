@@ -1,5 +1,5 @@
 {
-  "name": "telegram-admin-server",
+  "name": "telegraf-admin-for-bots",
   "version": "0.0.6",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
