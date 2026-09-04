@@ -1,7 +1,8 @@
-import type { TypedDB, Promo } from "../types";
+import type { Promo } from "../types";
+import type { PromoStore } from "../stores";
 
 export class PromocodeService {
-  constructor(private db: TypedDB) {}
+  constructor(private db: PromoStore) {}
 
   async create(data: Promo): Promise<Promo> {
     return this.db.createPromoCode(data);

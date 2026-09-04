@@ -1,6 +1,7 @@
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import type { AdminServices, AdminBotContext } from "../../types";
-import { safeReply } from "../utils";
+import { renderView } from "../utils";
 
 export function getAdminPaymentsScene(services: AdminServices) {
   const scene = new Scenes.BaseScene<AdminBotContext>("AdminPaymentsScene");
@@ -27,7 +28,10 @@ export function getAdminPaymentsScene(services: AdminServices) {
   return scene;
 }
 
-async function showPaymentsStats(ctx: AdminBotContext, services: AdminServices) {
+async function showPaymentsStats(
+  ctx: AdminBotContext,
+  services: AdminServices,
+) {
   try {
     const stats = await services.paymentService.getStats();
 
@@ -39,7 +43,7 @@ async function showPaymentsStats(ctx: AdminBotContext, services: AdminServices) 
     msg += `• Платежей: ${stats.lastMonth.count}\n`;
     msg += `• Сумма: ${stats.lastMonth.totalAmount} / доход: ${stats.lastMonth.totalIncomeAmount}\n`;
 
-    await safeReply(ctx, msg, {
+    await renderView(ctx, msg, {
       parse_mode: "HTML",
       ...Markup.inlineKeyboard([
         [Markup.button.callback("📋 Список платежей", "show_payments_list")],
@@ -47,13 +51,13 @@ async function showPaymentsStats(ctx: AdminBotContext, services: AdminServices) 
       ]),
     });
   } catch (error) {
-    console.error("Error loading payment stats:", error);
-    await safeReply(
+    log.error("Error loading payment stats:", error);
+    await renderView(
       ctx,
       "⚠️ Ошибка при загрузке статистики платежей",
       Markup.inlineKeyboard([
         [Markup.button.callback("« В меню", "back_to_menu")],
-      ])
+      ]),
     );
   }
 }
@@ -63,12 +67,12 @@ async function showPaymentsList(ctx: AdminBotContext, services: AdminServices) {
     const payments = await services.paymentService.getAllPayments();
 
     if (!payments || payments.length === 0) {
-      await safeReply(
+      await renderView(
         ctx,
         "💰 Платежей пока нет",
         Markup.inlineKeyboard([
           [Markup.button.callback("« Назад", "payments_back_to_stats")],
-        ])
+        ]),
       );
       return;
     }
@@ -88,7 +92,7 @@ async function showPaymentsList(ctx: AdminBotContext, services: AdminServices) {
       msg += `\n... и ещё ${payments.length - 20}`;
     }
 
-    await safeReply(ctx, msg, {
+    await renderView(ctx, msg, {
       parse_mode: "HTML",
       ...Markup.inlineKeyboard([
         [Markup.button.callback("« Назад", "payments_back_to_stats")],
@@ -96,13 +100,13 @@ async function showPaymentsList(ctx: AdminBotContext, services: AdminServices) {
       ]),
     });
   } catch (error) {
-    console.error("Error loading payments list:", error);
-    await safeReply(
+    log.error("Error loading payments list:", error);
+    await renderView(
       ctx,
       "⚠️ Ошибка при загрузке платежей",
       Markup.inlineKeyboard([
         [Markup.button.callback("« Назад", "payments_back_to_stats")],
-      ])
+      ]),
     );
   }
 }

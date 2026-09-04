@@ -1,116 +1,53 @@
-// Основной обработчик сообщений
+// Роутинг текстовых кнопок главного меню -> сцены. Строится из дескрипторов фич
+// (MenuEntry) + кастомных сцен. Выключенные фичи в меню не попадают.
 
 import { Markup } from "telegraf";
-import { AdminBotConfig, AdminServices, CustomScene } from "../../types";
+import type { CustomScene } from "../../types";
+import type { MenuEntry } from "../../features";
 import { safeReply } from "../utils";
 
-export const buttons = {
-  statistics: "📊 Статистика",
-  users: "👥 Пользователи",
-  broadcasts: "📢 Рассылки",
-  reports: "📝 Обращения",
-  postcontent: "📈 Инлайн реклама",
-  promocodes: "🎁 Промокоды",
-  payments: "💰 Платежи",
-  exit: "🚪 Выйти",
-};
+export const EXIT_BUTTON = "🚪 Выйти";
 
-export async function mainMessageHandler(
-  ctx: any,
-  services: AdminServices,
-  config: AdminBotConfig,
-  customScenes: Record<string, string>,
-  next?: () => void
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Ctx = any;
+
+/**
+ * @param menuEntries пункты меню включённых фич
+ * @param customScenes кастомные сцены хоста
+ */
+export function getMainGlobalMessageHandler(
+  menuEntries: MenuEntry[],
+  customScenes: CustomScene[],
 ) {
-  const text = ctx.update.message?.text;
-  if (!text) return;
-
-  if (customScenes[text]) {
-    await ctx.scene.enter(customScenes[text]);
-    return;
+  const byButton = new Map<string, string>();
+  for (const e of menuEntries) byButton.set(e.button, e.enter);
+  for (const c of customScenes) {
+    if (c.buttonText) byButton.set(c.buttonText, c.name);
   }
-  switch (text) {
-    case buttons.users:
-      await ctx.scene.enter("AdminUserSearchScene");
-      break;
 
-    case buttons.broadcasts:
-      if (config.broadcast) {
-        await ctx.scene.enter("AdminBroadcastListScene");
-      } else {
-        await safeReply(ctx, "⚠️ Модуль рассылок отключен");
-      }
-      break;
+  return async function mainGlobalMessageHandler(
+    ctx: Ctx,
+    next: () => Promise<void>,
+  ) {
+    const text: string | undefined = ctx.update?.message?.text;
+    if (!text) return next();
 
-    case buttons.reports:
-      if (config.reports) {
-        await ctx.scene.enter("AdminReportsListScene");
-      } else {
-        await safeReply(ctx, "⚠️ Модуль обращений отключен");
-      }
-      break;
+    const sceneId = byButton.get(text);
+    if (sceneId) {
+      await ctx.scene.enter(sceneId);
+      return;
+    }
 
-    case buttons.postcontent:
-      if (config.postcontentAd) {
-        await ctx.scene.enter("AdminPostContentAdListScene");
-      } else {
-        await safeReply(ctx, "⚠️ Модуль иналайн рекламы отключен");
-      }
-      break;
-
-    case buttons.promocodes:
-      if (config.promocodes) {
-        await ctx.scene.enter("AdminPromoListScene");
-      } else {
-        await safeReply(ctx, "⚠️ Модуль промокодов отключен");
-      }
-      break;
-
-    case buttons.payments:
-      if (config.payments) {
-        await ctx.scene.enter("AdminPaymentsScene");
-      } else {
-        await safeReply(ctx, "⚠️ Модуль платежей отключен");
-      }
-      break;
-
-    case buttons.statistics:
-      await ctx.scene.enter("AdminStatisticsScene");
-      break;
-
-    case buttons.exit:
+    if (text === EXIT_BUTTON) {
       await ctx.scene.leave();
       await safeReply(
         ctx,
         "👤 Вернулись в режим пользователя",
-        Markup.removeKeyboard()
+        Markup.removeKeyboard(),
       );
-      // Можно перейти в основную сцену пользователя
-      // await ctx.scene.enter("mainScene");
-      break;
-
-    default:
-      // Игнорируем неизвестные команды в админ-меню
-      next?.();
-      break;
-  }
-}
-
-export function getMainGlobalMessageHandler(
-  services: AdminServices,
-  config: AdminBotConfig,
-  customScenes: CustomScene[]
-) {
-  const scenesMatcher = customScenes.reduce((acc, cur) => {
-    if (cur.buttonText) {
-      acc[cur.buttonText] = cur.name;
+      return;
     }
-    return acc;
-  }, {} as Record<string, string>);
-  return async function mainGlobalMessageHandler(
-    ctx: any,
-    next: () => Promise<void>
-  ) {
-    await mainMessageHandler(ctx, services, config, scenesMatcher, next);
+
+    return next();
   };
 }

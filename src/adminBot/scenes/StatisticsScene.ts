@@ -1,3 +1,4 @@
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import type {
   AdminServices,
@@ -10,12 +11,21 @@ type Ctx = AdminBotContext;
 /**
  * Сцена статистики
  */
-export function getStatsScene(services: AdminServices, _config: AdminBotConfig) {
+export function getStatsScene(
+  services: AdminServices,
+  _config: AdminBotConfig,
+) {
   const scene = new Scenes.BaseScene<Ctx>("AdminStatisticsScene");
 
   scene.enter(async (ctx) => {
     try {
-      const stats = await services.userService.getStats();
+      // Форма статистики определяется конкретным ботом (UserStats), поэтому здесь
+      // читаем поля мягко.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stats = (await services.userService.getStats()) as Record<
+        string,
+        any
+      >;
       const { currentMonth, lastMonth } = stats.payments ?? {};
 
       const now = new Date();
@@ -50,13 +60,13 @@ export function getStatsScene(services: AdminServices, _config: AdminBotConfig) 
         ]),
       });
     } catch (error) {
-      console.error("Ошибка получения статистики:", error);
+      log.error("Ошибка получения статистики:", error);
       await safeReply(
         ctx,
         "❌ Ошибка при загрузке статистики. Попробуйте позже.",
         Markup.inlineKeyboard([
           [Markup.button.callback("🏠 На главную", "stats_back")],
-        ])
+        ]),
       );
     }
   });
@@ -64,7 +74,8 @@ export function getStatsScene(services: AdminServices, _config: AdminBotConfig) 
   // Вернуться на главную
   scene.action("stats_back", async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.deleteMessage();
+    // сообщение может быть старше 48 ч — тогда deleteMessage кинет; не критично
+    await ctx.deleteMessage().catch(() => {});
     await ctx.scene.enter("MainAdminMenuScene");
   });
 

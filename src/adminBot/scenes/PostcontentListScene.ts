@@ -1,11 +1,13 @@
 // ./scenes/AdminPostContentAdListScene.ts
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import type {
   AdminServices,
   AdminBotConfig,
   AdminBotContext,
 } from "../../types";
-import { safeReply } from "../utils";
+import { renderView } from "../utils";
+import { showForIcon, showForText } from "../labels";
 
 export function getAdminPostContentAdListScene(
   services: AdminServices,
@@ -47,7 +49,7 @@ export function getAdminPostContentAdListScene(
       // Обновляем список
       await showAdsList(ctx, services);
     } catch (error) {
-      console.error("Error deleting ad:", error);
+      log.error("Error deleting ad:", error);
       await ctx.answerCbQuery("⚠️ Ошибка при удалении");
     }
   });
@@ -75,7 +77,7 @@ export function getAdminPostContentAdListScene(
       // Показываем обновленные детали
       await showAdDetails(ctx, services, adId);
     } catch (error) {
-      console.error("Error toggling ad:", error);
+      log.error("Error toggling ad:", error);
       await ctx.answerCbQuery("⚠️ Ошибка");
     }
   });
@@ -107,7 +109,7 @@ export function getAdminPostContentAdListScene(
       await ctx.telegram.sendMessage(ctx.from.id, `это тест\n\n${ad.text}`);
       await ctx.answerCbQuery("✅ Тест отправлен");
     } catch (error) {
-      console.error("Error sending ad test:", error);
+      log.error("Error sending ad test:", error);
       await ctx.answerCbQuery("⚠️ Ошибка при отправке теста");
     }
   });
@@ -160,7 +162,7 @@ async function showAdsList(
           "filter_inactive",
         ),
       ];
-      await safeReply(
+      await renderView(
         ctx,
         "📣 Реклама в постах\n\n📭 Рекламы пока нет",
         Markup.inlineKeyboard([
@@ -221,10 +223,10 @@ async function showAdsList(
       [Markup.button.callback("« В меню", "back_to_menu")],
     ];
 
-    await safeReply(ctx, message, Markup.inlineKeyboard(keyboard));
+    await renderView(ctx, message, Markup.inlineKeyboard(keyboard));
   } catch (error) {
-    console.error("Error loading ads:", error);
-    await safeReply(
+    log.error("Error loading ads:", error);
+    await renderView(
       ctx,
       "⚠️ Ошибка при загрузке рекламы",
       Markup.inlineKeyboard([
@@ -244,7 +246,8 @@ async function showAdDetails(
     const ad = await services.postContentService.get(adId);
 
     if (!ad) {
-      await ctx.editMessageText(
+      await renderView(
+        ctx,
         "❌ Реклама не найдена",
         Markup.inlineKeyboard([
           [Markup.button.callback("« Назад", "back_to_list")],
@@ -271,7 +274,7 @@ async function showAdDetails(
     // Типы контента
     if (ad.showFor && ad.showFor.length > 0) {
       const types = ad.showFor
-        .map((t) => getShowForIcon(t) + " " + getShowForText(t))
+        .map((t) => showForIcon(t) + " " + showForText(t))
         .join(", ");
       details.push("", `Показывать для: ${types}`);
     }
@@ -309,47 +312,9 @@ async function showAdDetails(
       [Markup.button.callback("« В меню", "back_to_menu")],
     );
 
-    await ctx.editMessageText(
-      details.join("\n"),
-      Markup.inlineKeyboard(buttons),
-    );
+    await renderView(ctx, details.join("\n"), Markup.inlineKeyboard(buttons));
   } catch (error) {
-    console.error("Error showing ad details:", error);
+    log.error("Error showing ad details:", error);
     await ctx.answerCbQuery("⚠️ Ошибка");
-  }
-}
-
-// Вспомогательные функции
-function getShowForIcon(type: string): string {
-  switch (type) {
-    case "image":
-      return "🖼";
-    case "video":
-      return "🎬";
-    case "audio":
-      return "🎵";
-    case "text":
-      return "📝";
-    case "any":
-      return "🌐";
-    default:
-      return "❓";
-  }
-}
-
-function getShowForText(type: string): string {
-  switch (type) {
-    case "image":
-      return "Изображения";
-    case "video":
-      return "Видео";
-    case "audio":
-      return "Аудио";
-    case "text":
-      return "Текст";
-    case "any":
-      return "Любой";
-    default:
-      return "Неизвестно";
   }
 }

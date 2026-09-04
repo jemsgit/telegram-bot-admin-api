@@ -1,7 +1,8 @@
 // ./scenes/AdminUserSearchScene.ts
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import { message } from "telegraf/filters";
-import { safeReply } from "../utils";
+import { safeReply, renderView, setFoundUser } from "../utils";
 import type {
   AdminServices,
   AdminBotConfig,
@@ -10,7 +11,7 @@ import type {
 
 export function getAdminUserSearchScene(
   services: AdminServices,
-  _config: AdminBotConfig
+  _config: AdminBotConfig,
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>("AdminUserSearchScene");
 
@@ -18,14 +19,20 @@ export function getAdminUserSearchScene(
     if (!ctx.session.admin) {
       ctx.session.admin = {};
     }
-    await safeReply(
+    await renderView(
       ctx,
       "🔍 Поиск пользователя\n\n" +
         "Введите username (без @) или ID пользователя:",
       Markup.inlineKeyboard([
         [Markup.button.callback("« Назад", "back_to_menu")],
-      ])
+      ]),
     );
+  });
+
+  // Команды регистрируем до текстового обработчика, иначе `.on(message("text"))`
+  // перехватит `/cancel` как поисковый запрос.
+  scene.command("cancel", (ctx) => {
+    ctx.scene.enter("MainAdminMenuScene");
   });
 
   // Поиск по username / ID
@@ -42,15 +49,14 @@ export function getAdminUserSearchScene(
           "❌ Пользователь не найден\n\nПопробуйте ещё раз или вернитесь в меню:",
           Markup.inlineKeyboard([
             [Markup.button.callback("« Назад", "back_to_menu")],
-          ])
+          ]),
         );
         return;
       }
 
       // Если найден только один пользователь - сразу переходим к профилю
       if (users.length === 1) {
-        ctx.session.admin = ctx.session.admin || {};
-        ctx.session.admin.foundUser = users[0];
+        setFoundUser(ctx, users[0].userId);
         await ctx.scene.enter("AdminUserProfileScene");
         return;
       }
@@ -58,14 +64,14 @@ export function getAdminUserSearchScene(
       // Если найдено несколько - показываем список
       await showUsersList(ctx, users);
     } catch (error) {
-      console.error("Error searching user:", error);
+      log.error("Error searching user:", error);
 
       await safeReply(
         ctx,
         "⚠️ Ошибка при поиске. Попробуйте снова.",
         Markup.inlineKeyboard([
           [Markup.button.callback("« Назад", "back_to_menu")],
-        ])
+        ]),
       );
     }
   });
@@ -83,12 +89,11 @@ export function getAdminUserSearchScene(
         return;
       }
 
-      ctx.session.admin = ctx.session.admin || {};
-      ctx.session.admin.foundUser = user;
+      setFoundUser(ctx, user.userId);
 
       await ctx.scene.enter("AdminUserProfileScene");
     } catch (error) {
-      console.error("Error selecting user:", error);
+      log.error("Error selecting user:", error);
       await ctx.answerCbQuery("⚠️ Ошибка");
     }
   });
@@ -97,10 +102,6 @@ export function getAdminUserSearchScene(
   scene.action("back_to_menu", async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.scene.enter("MainAdminMenuScene");
-  });
-
-  scene.command("cancel", (ctx) => {
-    ctx.scene.enter("MainAdminMenuScene");
   });
 
   // Добавьте в scene перед return
@@ -142,7 +143,7 @@ async function showUsersList(ctx: AdminBotContext, users: any[]) {
     return [
       Markup.button.callback(
         buttonText.substring(0, 60), // Ограничение длины кнопки
-        `select_user_${user.userId}`
+        `select_user_${user.userId}`,
       ),
     ];
   });

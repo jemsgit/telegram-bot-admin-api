@@ -1,427 +1,417 @@
 # telegraf-admin-for-bots
 
-Библиотека для быстрого добавления административного интерфейса в Telegram-бот. Предоставляет два компонента:
+Универсальная админка для Telegram-ботов на [Telegraf](https://telegraf.js.org/).
+Подключается к любому боту по одному паттерну и даёт:
 
-- **AdminBot** — интерактивное Telegram-меню для управления ботом прямо из чата
-- **AdminServer** — HTTP REST API для внешних административных панелей
+- **Telegram-меню администратора** — управление ботом прямо из чата (команда `/admin`);
+- **HTTP REST API** — для внешней админ-панели.
+
+Модуль не зависит от БД: вы передаёте объект, реализующий сторы включённых фич.
 
 ---
 
 ## Содержание
 
 - [Установка](#установка)
-- [Требования к интеграции](#требования-к-интеграции)
-- [AdminBot](#adminbot)
-- [AdminServer](#adminserver)
-- [Конфигурация функций](#конфигурация-функций)
+- [Быстрый старт](#быстрый-старт)
+- [Конфигурация `createAdmin`](#конфигурация-createadmin)
+- [Фичи](#фичи)
+- [Сторы БД](#сторы-бд)
+- [Адаптеры хоста](#адаптеры-хоста)
+- [Модель пользователя `AdminUser`](#модель-пользователя-adminuser)
 - [HTTP API](#http-api)
-- [Расширение: кастомные сцены](#расширение-кастомные-сцены)
-- [Расширение: кастомные HTTP-роуты](#расширение-кастомные-http-роуты)
+- [Кастомные сцены](#кастомные-сцены)
+- [Кастомные HTTP-роуты](#кастомные-http-роуты)
+- [Миграция с 0.0.x](#миграция-с-00x)
 
 ---
 
 ## Установка
 
 ```bash
-# npm
 npm install telegraf-admin-for-bots
-
-# yarn
-yarn add telegraf-admin-for-bots
-```
-
-Пакет требует `telegraf` как peer dependency:
-
-```bash
+# telegraf — peer dependency
 npm install telegraf
 ```
 
 ---
 
-## Требования к интеграции
+## Быстрый старт
 
-### Интерфейс `TypedDB`
+```js
+const { Telegraf } = require("telegraf");
+const { createAdmin } = require("telegraf-admin-for-bots");
 
-Библиотека не зависит от конкретной БД. Нужно передать объект, реализующий интерфейс `TypedDB`. Ниже полный список методов:
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
-```typescript
-interface TypedDB {
-  // Пользователи
-  findUsersByQuery(query: string): Promise<User[]>;
-  findUserById(userId: string | number): Promise<User | null>;
-  getUsers(): Promise<User[]>;
-  getUserStats(): Promise<any>;
-  extendSubscription(userId: string | number, days: number): Promise<boolean>;
-  activatePromoSubscription(
-    userId: string | number,
-    data: { days: number },
-  ): Promise<boolean>;
-  deleteSubscription(userId: string | number): Promise<boolean>;
-  getUserReports(userId: string | number): Promise<UserReport[]>;
-  addPromoCodeToUser(
-    userId: string | number,
-    promoCode: string,
-  ): Promise<boolean>;
+const admin = createAdmin({
+  bot,
+  admins: [123456789], // Telegram ID администраторов
+  db, // объект со сторами включённых фич (см. ниже)
 
-  // Подписки
-  getAllSubscriptions(): Promise<Subscription[]>;
-
-  // Обращения
-  getReports(): Promise<UserReport[]>;
-  getReportById(reportId: string): Promise<UserReport | null>;
-  saveReportReply(
-    reportId: string,
-    author: string,
-    text: string,
-  ): Promise<void>;
-
-  // Рассылки
-  getAllBroadcasts(status?: string | null): Promise<Broadcast[]>;
-  getBroadcast(id: string): Promise<Broadcast | null>;
-  saveBroadcast(broadcast: Broadcast): Promise<void>;
-  deleteBroadcast(id: string): Promise<boolean>;
-
-  // Промокоды
-  createPromoCode(
-    data: Omit<Promo, "isActive"> & { isActive?: boolean },
-  ): Promise<Promo>;
-  deletePromocode(code: string): Promise<boolean>;
-  getAllPromoCodes(): Promise<Promo[]>;
-
-  // Платежи
-  getAllPayments(): Promise<Payment[]>;
-  getPaymentsStats(): Promise<{
-    currentMonth: PaymentStats;
-    lastMonth: PaymentStats;
-  }>;
-
-  // Рефералы
-  getRefferals(): Promise<any[]>;
-  countRefferalsByRefLink(link: string): Promise<any>;
-
-  // Инлайн-реклама
-  getAds(filter?: Partial<PostContentAd>): Promise<PostContentAd[]>;
-  getAdById(id: string): Promise<PostContentAd | null>;
-  createAd(data: PostContentAd): Promise<PostContentAd>;
-  updateAd(
-    id: string,
-    data: Partial<PostContentAd>,
-  ): Promise<PostContentAd | null>;
-  deleteAd(id: string): Promise<boolean>;
-  addAdViewToUser(userId: string, adId: string): Promise<PostContentAdView>;
-  getAdForUser(userId: string, type: string): Promise<PostContentAd | null>;
-}
-```
-
-### Интерфейс `BotApp`
-
-Объект вашего бота должен иметь следующую форму:
-
-```typescript
-interface BotApp {
-  bot: Telegraf<any>; // Экземпляр Telegraf
-  sendTestBroadcast(broadcast: Broadcast): void; // Отправить тестовую рассылку себе
-  replyToUserReport(userId: number, message: string, text: string): void; // Ответить на обращение
-}
-```
-
----
-
-## AdminBot
-
-Добавляет Telegram-меню администратора прямо в ваш бот. Доступно по команде `/admin`.
-
-### Подключение
-
-```javascript
-const { AdminBot } = require("telegram-admin-server");
-
-class MyAdminBot {
-  constructor(bot, db, scheduleService) {
-    this.adminBot = new AdminBot(
-      bot, // BotApp — объект с полями bot, sendTestBroadcast, replyToUserReport
-      {
-        // AdminBotConfig — включить/выключить модули
-        broadcast: true,
-        subscriptions: true,
-        promocodes: true,
-        reports: true,
-        referral: true,
-        payments: true,
-        postcontentAd: true,
-      },
-      [123456789], // Массив Telegram ID администраторов
-      db, // Объект TypedDB
-      scheduleService, // Сервис планировщика рассылок
-      [], // Кастомные сцены (см. раздел расширения)
-    );
-  }
-
-  start(stage) {
-    // Передаём stage бота — adminBot добавит в него свои сцены
-    this.adminBot.attach(stage);
-  }
-}
-```
-
-### Команды бота
-
-| Команда  | Описание                            |
-| -------- | ----------------------------------- |
-| `/admin` | Открыть главное меню администратора |
-| `/user`  | Вернуться в пользовательский режим  |
-
-### Главное меню
-
-Кнопки в меню отображаются динамически в зависимости от включённых модулей:
-
-| Кнопка            | Модуль          | Описание                                      |
-| ----------------- | --------------- | --------------------------------------------- |
-| 👥 Пользователи   | всегда          | Поиск, просмотр профиля, управление подпиской |
-| 📊 Статистика     | всегда          | Сводка по пользователям и платежам            |
-| 📢 Рассылки       | `broadcast`     | Создание и управление рассылками              |
-| 📝 Обращения      | `reports`       | Просмотр и ответ на сообщения пользователей   |
-| 🎁 Промокоды      | `promocodes`    | Создание и удаление промокодов                |
-| 💰 Платежи        | `payments`      | История и статистика платежей                 |
-| 📈 Инлайн реклама | `postcontentAd` | Управление встроенной рекламой в постах       |
-
----
-
-## AdminServer
-
-Запускает HTTP-сервер с REST API для внешней административной панели.
-
-### Подключение через `createAdminServer`
-
-```javascript
-const { createAdminServer } = require("telegram-admin-server");
-
-const adminServer = createAdminServer(
-  bot, // BotApp
-  db, // TypedDB
-  scheduler, // Сервис планировщика
-  {
-    port: 3105, // Порт (по умолчанию 3105)
-    features: { broadcast: true }, // Включённые функции (по умолчанию все включены)
-    baseUrl: "https://my-domain.com", // Базовый URL (опционально)
-    customRoutes: [], // Кастомные роуты (см. раздел расширения)
+  features: {
+    broadcast: true,
+    reports: true,
+    promocodes: true,
+    // остальные — по умолчанию включены
   },
-);
 
-adminServer.start();
+  adapters: {
+    broadcast: {
+      scheduler, // { scheduleBroadcast, rescheduleBroadcast, cancelBroadcast }
+      sendTest: (broadcast) => myBot.sendTestBroadcast(broadcast),
+    },
+    reports: {
+      replyToUser: (userId, replyText) =>
+        bot.telegram.sendMessage(userId, replyText),
+    },
+  },
+
+  telegramMenu: { enabled: true },
+
+  http: {
+    enabled: true,
+    port: 3010,
+    token: process.env.ADMIN_API_TOKEN,
+  },
+});
+
+admin.attachBot(); // монтирует /admin-меню — до bot.launch()
+admin.startHttp(); // поднимает HTTP API -> http.Server
+
+bot.launch();
 ```
 
-### Переменные окружения
+Для прототипа сгодится встроенное in-memory хранилище:
 
-| Переменная        | Описание                                               |
-| ----------------- | ------------------------------------------------------ |
-| `ADMIN_API_TOKEN` | Токен для авторизации запросов к API (**обязательно**) |
-
-### Авторизация
-
-Все запросы к `/api/*` должны содержать токен одним из способов:
-
-```
-x-api-key: your-token
-Authorization: Bearer your-token
+```js
+const { createMemoryStore } = require("telegraf-admin-for-bots");
+const db = createMemoryStore({ users: [{ userId: 1, username: "me", active: true }] });
 ```
 
 ---
 
-## Конфигурация функций
+## Конфигурация `createAdmin`
 
-Объект `AdminBotConfig` / `features` управляет доступными модулями:
-
-```typescript
-{
-  broadcast: boolean; // Рассылки
-  subscriptions: boolean; // Управление подписками
-  promocodes: boolean; // Промокоды
-  reports: boolean; // Обращения пользователей
-  referral: boolean; // Реферальная система
-  payments: boolean; // Платежи
-  postcontentAd: boolean; // Инлайн-реклама в постах
+```ts
+interface AdminConfig {
+  bot: Telegraf;               // инстанс бота-хоста
+  admins: number[];            // Telegram ID администраторов
+  db: AdminStore;              // сторы включённых фич (обязателен UserStore)
+  features?: Partial<FeaturesConfig>;   // по умолчанию все включены
+  adapters?: AdminAdapters;    // нужны для broadcast / reports
+  telegramMenu?: {
+    enabled?: boolean;         // default true
+    session?: { store?; getSessionKey? };  // своя сессия admin-меню
+    customScenes?: CustomScene[];
+  };
+  http?: {
+    enabled?: boolean;
+    port?: number;             // default 3105
+    token?: string;            // ОБЯЗАТЕЛЕН при enabled
+    cors?: { origins: string[] | true };
+    customRoutes?: CustomRouteWithUi[];
+  };
+  logger?: Logger;             // winston / pino / свой { debug,info,warn,error }
+  logLevel?: LogLevel;         // "debug" | "info" | "warn" | "error" | "silent" (default "info")
 }
 ```
 
-Отключённые модули не отображаются в меню бота и не регистрируют соответствующие HTTP-роуты.
+По умолчанию модуль пишет в `console` с префиксом `[telegraf-admin-for-bots]`.
+Передайте `logger`, чтобы направить логи в свой транспорт, или `logLevel` — чтобы
+приглушить встроенный.
+
+`createAdmin` возвращает:
+
+```ts
+interface AdminHandle {
+  services: AdminServices;     // доступ к сервисам
+  attachBot(): void;
+  startHttp(): http.Server | undefined;
+  stopHttp(): Promise<void>;   // graceful shutdown
+}
+```
+
+Модуль **не читает переменные окружения** — токен, порт и админов передавайте явно.
+
+---
+
+## Фичи
+
+| Фича | Меню | HTTP | Требует адаптер | Требует стор |
+|---|---|---|---|---|
+| _users, statistics_ | всегда | всегда | — | `UserStore` |
+| `broadcast` | 📢 Рассылки | `/api/broadcasts*` | `adapters.broadcast` | `BroadcastStore` |
+| `subscriptions` | — | `/api/subscriptions*` | — | `SubscriptionStore` |
+| `promocodes` | 🎁 Промокоды | `/api/promocodes*` | — | `PromoStore` |
+| `reports` | 📝 Обращения | `/api/reports*` | `adapters.reports` | `ReportStore` |
+| `payments` | 💰 Платежи | `/api/payments*` | — | `PaymentStore` |
+| `referral` | — | `/api/referrals` | — | `ReferralStore` |
+| `postcontentAd` | 📈 Инлайн реклама | `/api/ads*` | — | `PostContentStore` |
+
+Выключенная фича не показывается в меню и не регистрирует свои HTTP-роуты.
+Если фича включена, но нужный адаптер не передан — фича **тихо отключается**
+с предупреждением в лог.
+
+---
+
+## Сторы БД
+
+`db` должен реализовать `UserStore` + сторы включённых фич. `createAdmin` проверяет
+это на старте и бросает со списком недостающих методов.
+
+```ts
+interface UserStore {          // всегда
+  findUsersByQuery(query: string): Promise<AdminUser[]>;
+  findUserById(userId: IdLike): Promise<AdminUser | null>;
+  getUsers(): Promise<AdminUser[]>;
+  getUserStats(): Promise<Record<string, unknown>>;
+}
+
+interface BroadcastStore {
+  getAllBroadcasts(status?): Promise<Broadcast[]>;
+  getBroadcast(id): Promise<Broadcast | null>;
+  saveBroadcast(b): Promise<void>;
+  deleteBroadcast(id): Promise<boolean>;
+}
+
+interface SubscriptionStore {
+  getAllSubscriptions(): Promise<Subscription[]>;
+  extendSubscription(userId, days): Promise<boolean>;
+  activatePromoSubscription(userId, { days }): Promise<boolean>;
+  deleteSubscription(userId): Promise<boolean>;
+}
+
+interface PromoStore {
+  createPromoCode(data): Promise<Promo>;
+  deletePromocode(code): Promise<boolean>;
+  getAllPromoCodes(): Promise<Promo[]>;
+  addPromoCodeToUser(userId, code): Promise<boolean>;
+}
+
+interface ReportStore {
+  getReports(): Promise<UserReport[]>;
+  getReportById(id): Promise<UserReport | null>;
+  saveReportReply(id, author, text): Promise<void>;
+  getUserReports(userId): Promise<UserReport[]>;
+}
+
+interface PaymentStore {
+  getAllPayments(): Promise<Payment[]>;
+  getPaymentsStats(): Promise<PaymentStats>;
+}
+
+interface ReferralStore {
+  getRefferals(): Promise<RefferalCount[]>;
+  countRefferalsByRefLink(link): Promise<RefferalCount | number>;
+}
+
+interface PostContentStore {
+  getAds(filter?): Promise<PostContentAd[]>;
+  getAdById(id): Promise<PostContentAd | null>;
+  createAd(data): Promise<PostContentAd>;
+  updateAd(id, data): Promise<PostContentAd | null>;
+  deleteAd(id): Promise<boolean>;
+  addAdViewToUser(userId, adId): Promise<PostContentAdView>;
+  getAdForUser(userId, type): Promise<PostContentAd | null>;
+}
+```
+
+Проверить свою реализацию:
+
+```js
+const { validateStore } = require("telegraf-admin-for-bots");
+validateStore(db, { broadcast: true, reports: true }); // бросит, если чего-то нет
+```
+
+---
+
+## Адаптеры хоста
+
+```ts
+interface BroadcastScheduler {
+  scheduleBroadcast(b: Broadcast): void | Promise<void>;
+  rescheduleBroadcast(id: string, b: Broadcast): boolean | Promise<boolean>;
+  cancelBroadcast(id: string): void | Promise<void>;
+}
+
+adapters.broadcast = {
+  scheduler: BroadcastScheduler,
+  sendTest(b: Broadcast): void | Promise<void>,   // отправить тест админу
+};
+
+adapters.reports = {
+  replyToUser(userId: number, replyText: string, originalText: string): void | Promise<void>,
+};
+```
+
+---
+
+## Модель пользователя `AdminUser`
+
+Сторы возвращают пользователя в терминах админки. Всё бот-специфичное — в `extra`.
+
+```ts
+interface AdminUser<Extra = Record<string, unknown>> {
+  userId: number | string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  createdAt?: Date;
+  active?: boolean;
+  promoCode?: string;
+  subscription?: {
+    activeUntil?: Date | null;
+    isTrial?: boolean;
+    trialUsed?: boolean;
+  } | null;
+  extra?: Extra;    // zodiak, birthday, ... — что угодно вашего бота
+}
+```
+
+Ваш стор маппит модель бота в `AdminUser` (см. пример адаптера в `astro-bot/src/admin-bot/admin-db.js`).
 
 ---
 
 ## HTTP API
 
-Базовый путь: `/api`. Все запросы требуют авторизации.
+Базовый путь `/api`. Все запросы, кроме `GET /health`, требуют токен:
 
-### Пользователи
-
-| Метод | Путь                   | Описание                           |
-| ----- | ---------------------- | ---------------------------------- |
-| `GET` | `/api/users?query=...` | Поиск пользователей                |
-| `GET` | `/api/users/all`       | Все пользователи                   |
-| `GET` | `/api/users/:id`       | Пользователь по ID                 |
-| `GET` | `/api/stats`           | Статистика (пользователи, платежи) |
-
-### Подписки _(требует `subscriptions: true`)_
-
-| Метод    | Путь                                         | Тело               | Описание                    |
-| -------- | -------------------------------------------- | ------------------ | --------------------------- |
-| `GET`    | `/api/subscriptions`                         | —                  | Список всех подписок        |
-| `POST`   | `/api/users/:id/extend-subscription`         | `{ days: number }` | Продлить подписку           |
-| `POST`   | `/api/users/:id/activate-promo-subscription` | `{ days: number }` | Активировать промо-подписку |
-| `DELETE` | `/api/users/:id/subscription`                | —                  | Удалить подписку            |
-
-### Обращения _(требует `reports: true`)_
-
-| Метод  | Путь                           | Тело               | Описание                           |
-| ------ | ------------------------------ | ------------------ | ---------------------------------- |
-| `GET`  | `/api/reports`                 | —                  | Все обращения                      |
-| `GET`  | `/api/reports/:reportId`       | —                  | Обращение по ID                    |
-| `POST` | `/api/reports/:reportId/reply` | `{ text: string }` | Ответить на обращение              |
-| `GET`  | `/api/users/:id/reports`       | —                  | Обращения конкретного пользователя |
-
-### Рассылки _(требует `broadcast: true`)_
-
-| Метод    | Путь                            | Описание                                                                        |
-| -------- | ------------------------------- | ------------------------------------------------------------------------------- |
-| `GET`    | `/api/broadcasts?status=...`    | Список рассылок (фильтр по статусу: `pending`, `progress`, `done`, `cancelled`) |
-| `GET`    | `/api/broadcasts/:id`           | Рассылка по ID                                                                  |
-| `POST`   | `/api/broadcasts`               | Создать рассылку                                                                |
-| `DELETE` | `/api/broadcasts/:id`           | Удалить рассылку                                                                |
-| `POST`   | `/api/broadcasts/:id/send-test` | Отправить тестовую рассылку                                                     |
-
-Тело для создания рассылки:
-
-```json
-{
-  "title": "Название",
-  "type": "text | photo | video",
-  "text": "Текст сообщения",
-  "mediaUrl": "https://...",
-  "scheduledAt": "2025-12-31T12:00:00Z",
-  "excludePaid": false,
-  "linkButtons": [{ "text": "Кнопка", "url": "https://..." }]
-}
+```
+x-api-key: <token>
+Authorization: Bearer <token>
 ```
 
-### Промокоды _(требует `promocodes: true`)_
+> Админите несколько ботов из одной веб-панели? Не ходите в эти API из браузера
+> напрямую (mixed content + токен на клиенте) — проксируйте через бэкенд панели.
+> См. [docs/CENTRAL_PANEL_GATEWAY.md](docs/CENTRAL_PANEL_GATEWAY.md).
 
-| Метод    | Путь                       | Описание                          |
-| -------- | -------------------------- | --------------------------------- |
-| `GET`    | `/api/promocodes`          | Все промокоды                     |
-| `POST`   | `/api/promocodes`          | Создать промокод                  |
-| `DELETE` | `/api/promocodes/:code`    | Удалить промокод                  |
-| `POST`   | `/api/users/:id/promocode` | Применить промокод к пользователю |
+| Метод | Путь | Фича |
+|---|---|---|
+| `GET` | `/health` | — (без токена) |
+| `GET` | `/api/config` | — |
+| `GET` | `/api/users?query=` | users |
+| `GET` | `/api/users/all` | users |
+| `GET` | `/api/users/:id` | users |
+| `GET` | `/api/stats` | users |
+| `GET`/`POST`/`PUT`/`DELETE` | `/api/broadcasts*` | broadcast |
+| `POST` | `/api/broadcasts/:id/send-test` | broadcast |
+| `GET` | `/api/subscriptions` | subscriptions |
+| `POST` | `/api/users/:id/extend-subscription` `{ days }` | subscriptions |
+| `POST` | `/api/users/:id/activate-promo-subscription` `{ days }` | subscriptions |
+| `DELETE` | `/api/users/:id/subscription` | subscriptions |
+| `GET`/`POST`/`DELETE` | `/api/promocodes*` | promocodes |
+| `POST` | `/api/users/:id/promocode` `{ promoCode }` | promocodes |
+| `GET` | `/api/reports`, `/api/reports/:id` | reports |
+| `POST` | `/api/reports/:id/reply` `{ text }` | reports |
+| `GET` | `/api/users/:id/reports` | reports |
+| `GET` | `/api/payments`, `/api/payments/stats` | payments |
+| `GET` | `/api/referrals?link=` | referral |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/api/ads*` | postcontentAd |
 
-### Платежи _(требует `payments: true`)_
-
-| Метод | Путь                  | Описание                              |
-| ----- | --------------------- | ------------------------------------- |
-| `GET` | `/api/payments`       | Все платежи                           |
-| `GET` | `/api/payments/stats` | Статистика за текущий и прошлый месяц |
-
-### Инлайн-реклама _(требует `postcontentAd: true`)_
-
-| Метод    | Путь           | Описание                |
-| -------- | -------------- | ----------------------- |
-| `GET`    | `/api/ads`     | Список рекламных блоков |
-| `GET`    | `/api/ads/:id` | Рекламный блок по ID    |
-| `POST`   | `/api/ads`     | Создать рекламный блок  |
-| `PATCH`  | `/api/ads/:id` | Обновить рекламный блок |
-| `DELETE` | `/api/ads/:id` | Удалить рекламный блок  |
-
-### Рефералы _(требует `referral: true`)_
-
-| Метод | Путь                      | Описание                         |
-| ----- | ------------------------- | -------------------------------- |
-| `GET` | `/api/referrals`          | Все рефералы                     |
-| `GET` | `/api/referrals?link=...` | Статистика по реферальной ссылке |
+Формат ошибки: `{ "error": string, "details"?: unknown }`.
 
 ---
 
-## Расширение: кастомные сцены
+## Кастомные сцены
 
-Можно добавить собственные Telegraf-сцены в меню администратора. Они отображаются как кнопки в главном меню и полностью доступны внутри admin-контекста.
-
-```javascript
+```js
 const { Scenes } = require("telegraf");
 
-// Создаём кастомную сцену
-const MyCustomScene = new Scenes.BaseScene("MyCustomScene");
-
-MyCustomScene.enter(async (ctx) => {
-  await ctx.reply("Добро пожаловать в кастомный раздел!");
+const MyScene = new Scenes.BaseScene("MyScene");
+MyScene.enter(async (ctx) => {
+  const users = await ctx.services.userService.getAll(); // ctx.services доступны
+  await ctx.reply(`Всего: ${users.length}`);
 });
 
-MyCustomScene.on("text", async (ctx) => {
-  // ctx.services — доступны все сервисы библиотеки
-  const users = await ctx.services.userService.getAll();
-  await ctx.reply(`Всего пользователей: ${users.length}`);
-  await ctx.scene.enter("MainAdminMenuScene");
+createAdmin({
+  // ...
+  telegramMenu: {
+    enabled: true,
+    customScenes: [
+      { name: "MyScene", scene: MyScene, buttonText: "🔧 Мой раздел" }, // кнопка в меню
+      { name: "MyChildScene", scene: MyChildScene },                    // без кнопки
+    ],
+  },
 });
-
-// Передаём сцену при создании AdminBot
-const adminBot = new AdminBot(bot, config, [ADMIN_ID], db, scheduler, [
-  {
-    name: "MyCustomScene", // Имя сцены (должно совпадать с именем в BaseScene)
-    scene: MyCustomScene, // Экземпляр сцены
-    buttonText: "🔧 Мой раздел", // Кнопка в главном меню (опционально)
-  },
-  {
-    name: "MyChildScene", // Дочерняя сцена без кнопки в главном меню
-    scene: MyChildScene,
-  },
-]);
 ```
 
-Внутри кастомных сцен через `ctx` доступны все сервисы библиотеки:
-
-```javascript
-ctx.services.userService; // UserService
-ctx.services.broadcastService; // BroadcastService
-ctx.services.reportService; // ReportService
-ctx.services.promocodeService; // PromocodeService
-ctx.services.subscriptionService;
-ctx.services.refferService;
-ctx.services.paymentService;
-ctx.services.postContentService;
-```
+Внутри сцен: `ctx.services.{userService, broadcastService, reportService,
+promocodeService, subscriptionService, refferService, paymentService,
+postContentService}`, `ctx.config` — флаги фич.
 
 ---
 
-## Расширение: кастомные HTTP-роуты
+## Кастомные HTTP-роуты
 
-Можно добавить собственные роуты в `AdminServer`. Они автоматически защищены той же авторизацией, что и встроенные.
+Точка расширения для бот-специфичной логики (то, чего нет среди фич модуля).
+Один элемент массива: путь + опциональная валидация + хендлер + UI-схема.
 
-```javascript
-const adminServer = createAdminServer(bot, db, scheduler, {
-  customRoutes: [
-    {
-      method: "get",
-      path: "/api/my-stats",
-      handler: async (req, res, next, bot, db) => {
-        const users = await db.getUsers();
-        res.json({ count: users.length });
+```js
+const { HttpError } = require("telegraf-admin-for-bots");
+
+createAdmin({
+  // ...
+  db, // объект db может нести любые методы сверх AdminStore — модуль их не трогает,
+      // но отдаёт целиком в хендлеры кастомных роутов
+  http: {
+    enabled: true,
+    token: process.env.ADMIN_API_TOKEN,
+    customRoutes: [
+      {
+        method: "post",
+        path: "users/:userId/rights", // '/api/' можно писать или опустить
+        // необязательные express-миддлвары до хендлера
+        validate: (req, res, next) =>
+          req.body.right ? next() : res.status(422).json({ error: "right required" }),
+        // сигнатура: (req, res, next, bot: Telegraf, db)
+        handler: async (req, res, next, bot, db) => {
+          await db.addUserRight(req.params.userId, req.body.right);
+          await bot.telegram.sendMessage(
+            req.params.userId,
+            `Выдано право: ${req.body.right}`,
+          );
+          return { rights: await db.getUserRights(req.params.userId) };
+          // вернул значение → 200 + JSON; вернул undefined → 204;
+          // нужен свой статус/тело — вызови res.json(...) и верни undefined;
+          // throw new HttpError(code, msg, details) → {error, details};
+          // любой другой throw → 500 + лог
+        },
+        ui: {
+          description: "Выдать пользователю право",
+          fields: [
+            { name: "userId", type: "numberInput", required: true, placement: "path" },
+            { name: "right", type: "textInput", required: true },
+          ],
+        },
       },
-    },
-    {
-      method: "post",
-      path: "/api/notify",
-      handler: async (req, res, next, bot, db) => {
-        const { userId, message } = req.body;
-        await bot.bot.telegram.sendMessage(userId, message);
-        res.json({ ok: true });
-      },
-    },
-  ],
+    ],
+  },
 });
 ```
 
-Обработчик получает:
+Кастомные роуты монтируются **под `/api` и под той же авторизацией**
+(`x-api-key` / `Authorization: Bearer <token>`), что и роуты модуля — префикс
+`/api/` в `path` можно указывать или опускать.
 
-| Аргумент | Тип                | Описание           |
-| -------- | ------------------ | ------------------ |
-| `req`    | `Express.Request`  | Запрос             |
-| `res`    | `Express.Response` | Ответ              |
-| `next`   | `NextFunction`     | Express next       |
-| `bot`    | `BotApp`           | Объект вашего бота |
-| `db`     | `TypedDB`          | Объект базы данных |
+`GET /api/config` возвращает флаги фич + `customRoutesConfig` (собранный из `ui`,
+с нормализованным `url`) — внешняя панель строит по нему формы.
+
+---
+
+## Миграция с 0.0.x
+
+| 0.0.x | 0.1.0 |
+|---|---|
+| `new AdminBot(botApp, config, [ID], db, scheduler, scenes).attach(stage)` | `createAdmin({ bot, admins, db, features, adapters, telegramMenu: { customScenes } }).attachBot()` |
+| `createAdminServer(botApp, db, scheduler, opts).start()` | `createAdmin({ ..., http: { enabled, port, token, customRoutes } }).startHttp()` |
+| `BotApp { bot, sendTestBroadcast, replyToUserReport }` | `bot: Telegraf` + `adapters.broadcast.sendTest` + `adapters.reports.replyToUser` |
+| `TypedDB` (25 методов) | сторы включённых фич |
+| `customRoutes` + `customRoutesConfig` | один `customRoutes` c полем `ui` |
+| `ADMIN_API_TOKEN` из env | `http.token` явно |
+| `User.zodiak`, `User.bithdate`, ... | `AdminUser.extra` |
+| `User.subscription.{subscriptionToDate, isDemoSubscription, demoUsed}` | `AdminUser.subscription.{activeUntil, isTrial, trialUsed}` |
+| `GET /api/reffers` | `GET /api/referrals` (`/api/reffers` — алиас) |
+
+Локальная разработка модуля — см. [DEVELOPMENT.md](./DEVELOPMENT.md).
+Ход рефакторинга — [REFACTORING.md](./REFACTORING.md).

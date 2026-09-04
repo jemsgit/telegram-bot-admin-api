@@ -1,7 +1,8 @@
-import { NextFunction } from "express";
+import { NextFunction, RequestHandler } from "express";
 import { Context, Telegraf } from "telegraf";
-import { Broadcast, User } from "./models";
-import { TypedDB } from "./db";
+import type { UserId } from "./models";
+import type { AdminStore } from "../stores";
+import type { ResolvedFeatures } from "../config";
 import { Scenes } from "telegraf";
 import { UserService } from "../services/user";
 import { BroadcastService } from "../services/broadcast";
@@ -18,20 +19,30 @@ export type {
   Promo,
   UserReport,
   Subscription,
-  User,
+  AdminUser,
+  UserSubscription,
+  UserId,
   RefferalCount,
 } from "./models";
 
 export interface CustomRoute {
-  method: "get" | "post" | "put" | "delete";
+  method: "get" | "post" | "put" | "delete" | "patch";
+  /**
+   * Путь роута. Монтируется под `/api` и под `apiAuth` — `/api/` в начале можно
+   * писать или опускать: `/api/users/:id/rights` и `users/:id/rights`
+   * эквивалентны.
+   */
   path: string;
+  /** Express-миддлвары до хендлера (валидация тела/параметров и т.п.). */
+  validate?: RequestHandler | RequestHandler[];
   handler: (
     req: Express.Request,
     res: Express.Response,
     next: NextFunction,
-    bot: BotApp,
-    db: TypedDB
-  ) => Promise<void>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    bot: Telegraf<any>,
+    db: AdminStore,
+  ) => Promise<void> | void;
 }
 
 export interface FeaturesConfig {
@@ -44,23 +55,8 @@ export interface FeaturesConfig {
   postcontentAd?: boolean;
 }
 
-export type Bot = Telegraf<any>;
-
-export interface BotApp {
-  bot: Bot;
-  sendTestBroadcast: (b: Broadcast) => void;
-  replyToUserReport: (userId: number, message: string, text: string) => void;
-}
-
-export interface AdminBotConfig {
-  broadcast: boolean;
-  subscriptions: boolean;
-  promocodes: boolean;
-  reports: boolean;
-  referral: boolean;
-  payments: boolean;
-  postcontentAd: boolean;
-}
+/** Флаги фич в разрешённом виде — то, что видят сцены. */
+export type AdminBotConfig = ResolvedFeatures;
 
 // Сервисы
 export interface AdminServices {
@@ -74,20 +70,13 @@ export interface AdminServices {
   postContentService: PostContentService;
 }
 
-export interface AdminBotSessionData extends Scenes.SceneSessionData {
-  admin: {
-    foundUser?: User | null;
-    waitingForPromoInput?: boolean;
-    replyingToReport?: string | null;
-  };
-}
-
-// Интерфейс для глобальной сессии пользователя
+// Интерфейс для глобальной сессии пользователя.
+// NB: это ручной union всех полей визардов. Кандидат на переезд на
+// `Scenes.WizardScene` / per-scene `scene.state` (см. REFACTORING.md E10).
 export interface SessionData {
   admin?: {
-    foundUser?: User | null;
-    searchResults?: User[];
-    searchPage?: number;
+    /** «Текущий» пользователь — только id, объект перечитываем из стора. */
+    foundUserId?: UserId | null;
     waitingForPromoInput?: boolean;
     replyingToReport?: string | null;
     promoCreateStep?:
@@ -108,7 +97,6 @@ export interface SessionData {
       isActive?: boolean;
       segments?: string[];
     };
-    promoList?: any[];
     promoPage?: number;
     broadcastDraft?: {
       title?: string;
@@ -185,5 +173,3 @@ export type CustomScene = {
   name: string;
   scene: Scenes.BaseScene<AdminBotContext>;
 };
-
-export type { TypedDB } from "./db";

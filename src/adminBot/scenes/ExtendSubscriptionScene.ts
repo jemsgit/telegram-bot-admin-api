@@ -1,7 +1,8 @@
 // ./scenes/AdminExtendSubscriptionScene.ts
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import { message } from "telegraf/filters";
-import { safeReply } from "../utils";
+import { safeReply, getFoundUser, setFoundUser } from "../utils";
 import type {
   AdminServices,
   AdminBotConfig,
@@ -10,10 +11,10 @@ import type {
 
 export function getAdminExtendSubscriptionScene(
   services: AdminServices,
-  _config: AdminBotConfig
+  _config: AdminBotConfig,
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>(
-    "AdminExtendSubscriptionScene"
+    "AdminExtendSubscriptionScene",
   );
 
   scene.enter(async (ctx) => {
@@ -33,13 +34,13 @@ export function getAdminExtendSubscriptionScene(
           Markup.button.callback("365 дней", "extend_365"),
         ],
         [Markup.button.callback("« Назад", "back_to_profile")],
-      ])
+      ]),
     );
   });
 
   // ============ HANDLER: кнопки быстрого выбора ============
   async function extendSubscription(ctx: AdminBotContext, days: number) {
-    const user = ctx.session.admin?.foundUser;
+    const user = await getFoundUser(ctx, services.userService);
 
     if (!user) {
       await safeReply(ctx, "⚠️ Пользователь не найден");
@@ -47,12 +48,14 @@ export function getAdminExtendSubscriptionScene(
     }
 
     try {
-      await services.userService.extendSubscription(
-        user.userId.toString(),
-        days
-      );
+      await services.userService.extendSubscription(user.userId, days);
 
-      await ctx.answerCbQuery("✅ Подписка продлена!");
+      // `extendSubscription` вызывается и из action-кнопок, и из текстового ввода
+      // числа дней — `answerCbQuery` есть смысл звать только в первом случае,
+      // иначе Telegram вернёт 400 и мы уйдём в catch с ложной «Ошибкой».
+      if (ctx.callbackQuery) {
+        await ctx.answerCbQuery("✅ Подписка продлена!").catch(() => {});
+      }
 
       await safeReply(
         ctx,
@@ -62,16 +65,16 @@ export function getAdminExtendSubscriptionScene(
         Markup.inlineKeyboard([
           [Markup.button.callback("« К профилю", "back_to_profile")],
           [Markup.button.callback("« В меню", "back_to_menu")],
-        ])
+        ]),
       );
     } catch (err) {
-      console.error("Error extending subscription:", err);
+      log.error("Error extending subscription:", err);
       await safeReply(
         ctx,
         "⚠️ Ошибка при продлении подписки",
         Markup.inlineKeyboard([
           [Markup.button.callback("« Назад", "back_to_profile")],
-        ])
+        ]),
       );
     }
   }
@@ -80,6 +83,9 @@ export function getAdminExtendSubscriptionScene(
   scene.action("extend_30", (ctx) => extendSubscription(ctx, 30));
   scene.action("extend_90", (ctx) => extendSubscription(ctx, 90));
   scene.action("extend_365", (ctx) => extendSubscription(ctx, 365));
+
+  // Команда — до текстового обработчика, иначе `/cancel` уйдёт в парсер числа дней.
+  scene.command("cancel", (ctx) => ctx.scene.enter("AdminUserProfileScene"));
 
   // ============ HANDLER: ручной ввод количества дней ============
   scene.on(message("text"), async (ctx) => {
@@ -91,7 +97,7 @@ export function getAdminExtendSubscriptionScene(
         "❌ Введите корректное положительное число дней",
         Markup.inlineKeyboard([
           [Markup.button.callback("« Назад", "back_to_profile")],
-        ])
+        ]),
       );
       return;
     }
@@ -107,9 +113,7 @@ export function getAdminExtendSubscriptionScene(
 
   scene.action("back_to_menu", async (ctx) => {
     await ctx.answerCbQuery();
-    ctx.session.admin = ctx.session.admin || {};
-    ctx.session.admin.foundUser = undefined;
-
+    setFoundUser(ctx, null);
     await ctx.scene.enter("MainAdminMenuScene");
   });
 

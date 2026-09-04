@@ -1,8 +1,11 @@
 // ./scenes/AdminPostContentAdCreateScene.ts
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import { message } from "telegraf/filters";
 import { safeReply } from "../utils";
 import { ensureAdminSession } from "../utils";
+import { parseDateTime } from "../dateInput";
+import { showForIcon, showForText } from "../labels";
 import type {
   AdminServices,
   AdminBotConfig,
@@ -36,6 +39,15 @@ export function getAdminPostContentAdCreateScene(
         [Markup.button.callback("« Отмена", "cancel_ad")],
       ]),
     );
+  });
+
+  // Команды — до текстового обработчика, иначе `.on(message("text"))` перехватит
+  // `/cancel` и запишет её как значение текущего шага визарда.
+  scene.command("cancel", (ctx) => {
+    const session = ensureAdminSession(ctx);
+    session.adDraft = undefined;
+    session.adCreateStep = undefined;
+    ctx.scene.enter("AdminPostContentAdListScene");
   });
 
   // Обработка текстового ввода
@@ -265,7 +277,7 @@ export function getAdminPostContentAdCreateScene(
     }
 
     const selected = session
-      .adDraft!.showFor.map((t) => getShowForIcon(t))
+      .adDraft!.showFor.map((t) => showForIcon(t))
       .join(" ");
 
     await ctx.answerCbQuery(`Выбрано: ${selected || "нет"}`);
@@ -370,7 +382,7 @@ export function getAdminPostContentAdCreateScene(
       session.adDraft = undefined;
       session.adCreateStep = undefined;
     } catch (error) {
-      console.error("Error creating ad:", error);
+      log.error("Error creating ad:", error);
       await safeReply(
         ctx,
         "⚠️ Ошибка при создании рекламы",
@@ -405,13 +417,6 @@ export function getAdminPostContentAdCreateScene(
     await ctx.scene.enter("MainAdminMenuScene");
   });
 
-  scene.command("cancel", (ctx) => {
-    const session = ensureAdminSession(ctx);
-    session.adDraft = undefined;
-    session.adCreateStep = undefined;
-    ctx.scene.enter("AdminPostContentAdListScene");
-  });
-
   return scene;
 }
 
@@ -420,7 +425,7 @@ async function askForMaxViews(ctx: AdminBotContext, session: any) {
   await safeReply(
     ctx,
     `✅ Типы: ${session
-      .adDraft!.showFor.map((t: string) => getShowForIcon(t))
+      .adDraft!.showFor.map((t: string) => showForIcon(t))
       .join(" ")}\n\n` +
       "Шаг 3/6: Введите максимальное количество показов (или 0 для безлимита):",
     Markup.inlineKeyboard([[Markup.button.callback("« Отмена", "cancel_ad")]]),
@@ -453,7 +458,7 @@ async function showConfirmation(
     "",
     `Текст: ${draft.text}`,
     `Типы: ${draft.showFor
-      .map((t: string) => getShowForIcon(t) + " " + getShowForText(t))
+      .map((t: string) => showForIcon(t) + " " + showForText(t))
       .join(", ")}`,
     `Макс. показов: ${draft.maxViews || "безлимит"}`,
     `Приоритет: ${draft.priority}`,
@@ -480,83 +485,4 @@ async function showConfirmation(
   );
 
   session.adCreateStep = undefined;
-}
-
-function parseDateTime(dateTimeString: string): Date {
-  const parts = dateTimeString.trim().split(" ");
-
-  if (parts.length !== 2) {
-    throw new Error("Invalid format");
-  }
-
-  const dateParts = parts[0].split(".");
-  const timeParts = parts[1].split(":");
-
-  if (dateParts.length !== 3 || timeParts.length !== 2) {
-    throw new Error("Invalid format");
-  }
-
-  const day = parseInt(dateParts[0]);
-  const month = parseInt(dateParts[1]) - 1;
-  const year = parseInt(dateParts[2]);
-  const hours = parseInt(timeParts[0]);
-  const minutes = parseInt(timeParts[1]);
-
-  if (
-    isNaN(day) ||
-    isNaN(month) ||
-    isNaN(year) ||
-    isNaN(hours) ||
-    isNaN(minutes)
-  ) {
-    throw new Error("Invalid format");
-  }
-
-  const date = new Date(year, month, day, hours, minutes);
-
-  if (
-    date.getDate() !== day ||
-    date.getMonth() !== month ||
-    date.getFullYear() !== year ||
-    date.getHours() !== hours ||
-    date.getMinutes() !== minutes
-  ) {
-    throw new Error("Invalid date");
-  }
-
-  return date;
-}
-
-function getShowForIcon(type: string): string {
-  switch (type) {
-    case "image":
-      return "🖼";
-    case "video":
-      return "🎬";
-    case "audio":
-      return "🎵";
-    case "text":
-      return "📝";
-    case "any":
-      return "🌐";
-    default:
-      return "❓";
-  }
-}
-
-function getShowForText(type: string): string {
-  switch (type) {
-    case "image":
-      return "Изображения";
-    case "video":
-      return "Видео";
-    case "audio":
-      return "Аудио";
-    case "text":
-      return "Текст";
-    case "any":
-      return "Любой";
-    default:
-      return "Неизвестно";
-  }
 }

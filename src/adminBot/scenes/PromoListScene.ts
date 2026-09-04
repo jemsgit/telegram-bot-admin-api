@@ -1,6 +1,7 @@
 // ./scenes/AdminPromoListScene.ts
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
-import { safeReply } from "../utils";
+import { renderView } from "../utils";
 import type {
   AdminServices,
   AdminBotConfig,
@@ -9,7 +10,7 @@ import type {
 
 export function getAdminPromoListScene(
   services: AdminServices,
-  _config: AdminBotConfig
+  _config: AdminBotConfig,
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>("AdminPromoListScene");
 
@@ -34,7 +35,7 @@ export function getAdminPromoListScene(
       // Обновляем список
       await showPromoList(ctx, services);
     } catch (error) {
-      console.error("Error deleting promo:", error);
+      log.error("Error deleting promo:", error);
       await ctx.answerCbQuery("⚠️ Ошибка при удалении");
     }
   });
@@ -71,13 +72,13 @@ async function showPromoList(ctx: AdminBotContext, services: AdminServices) {
     const promos = await services.promocodeService.getAll();
 
     if (!promos || promos.length === 0) {
-      await safeReply(
+      await renderView(
         ctx,
         "🎁 Промокоды\n\n📭 Промокодов пока нет",
         Markup.inlineKeyboard([
           [Markup.button.callback("➕ Создать промокод", "create_promo")],
           [Markup.button.callback("« В меню", "back_to_menu")],
-        ])
+        ]),
       );
       return;
     }
@@ -98,25 +99,25 @@ async function showPromoList(ctx: AdminBotContext, services: AdminServices) {
       return [
         Markup.button.callback(
           `${statusIcon} ${promo.code} (${promo.discountPercent}%)${dateInfo}`,
-          `view_promo_${promo.code}`
+          `view_promo_${promo.code}`,
         ),
       ];
     });
 
     buttons.push(
       [Markup.button.callback("➕ Создать промокод", "create_promo")],
-      [Markup.button.callback("« В меню", "back_to_menu")]
+      [Markup.button.callback("« В меню", "back_to_menu")],
     );
 
-    await safeReply(ctx, message, Markup.inlineKeyboard(buttons));
+    await renderView(ctx, message, Markup.inlineKeyboard(buttons));
   } catch (error) {
-    console.error("Error loading promos:", error);
-    await safeReply(
+    log.error("Error loading promos:", error);
+    await renderView(
       ctx,
       "⚠️ Ошибка при загрузке промокодов",
       Markup.inlineKeyboard([
         [Markup.button.callback("« В меню", "back_to_menu")],
-      ])
+      ]),
     );
   }
 }
@@ -125,17 +126,18 @@ async function showPromoList(ctx: AdminBotContext, services: AdminServices) {
 async function showPromoDetails(
   ctx: AdminBotContext,
   services: AdminServices,
-  promoCode: string
+  promoCode: string,
 ) {
   try {
     const promos = await services.promocodeService.getAll();
     const promo = promos.find((item) => item.code === promoCode);
     if (!promo) {
-      await ctx.editMessageText(
+      await renderView(
+        ctx,
         "❌ Промокод не найден",
         Markup.inlineKeyboard([
           [Markup.button.callback("« Назад", "back_to_list")],
-        ])
+        ]),
       );
       return;
     }
@@ -163,23 +165,14 @@ async function showPromoDetails(
     }
 
     const buttons = [
-      [
-        Markup.button.callback(
-          promo.isActive ? "⏸️ Деактивировать" : "▶️ Активировать",
-          `toggle_promo_${promo.code}`
-        ),
-      ],
       [Markup.button.callback("🗑 Удалить", `delete_promo_${promo.code}`)],
       [Markup.button.callback("« К списку", "back_to_list")],
       [Markup.button.callback("« В меню", "back_to_menu")],
     ];
 
-    await ctx.editMessageText(
-      details.join("\n"),
-      Markup.inlineKeyboard(buttons)
-    );
+    await renderView(ctx, details.join("\n"), Markup.inlineKeyboard(buttons));
   } catch (error) {
-    console.error("Error showing promo details:", error);
+    log.error("Error showing promo details:", error);
     await ctx.answerCbQuery("⚠️ Ошибка");
   }
 }

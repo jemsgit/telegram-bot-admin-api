@@ -68,7 +68,7 @@ export const broadcastValidationSchema = Joi.object<BroadcastCreateBody>({
       Joi.object({
         text: Joi.string().required(),
         url: Joi.string().uri().required(),
-      })
+      }),
     )
     .default([]),
 });
@@ -86,9 +86,9 @@ const promoCreateSchema = Joi.object<PromoCreateBody>({
 
 // Типизированные middleware
 export const validateDays = (
-  req: Request<Record<string, never>, unknown, DaysBody>,
+  req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void => {
   const { error, value } = daysSchema.validate(req.body);
   if (error) {
@@ -100,9 +100,9 @@ export const validateDays = (
 };
 
 export const validateReply = (
-  req: Request<Record<string, never>, unknown, ReportReplyBody>,
+  req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void => {
   const { error, value } = reportReplySchema.validate(req.body);
   if (error) {
@@ -114,9 +114,9 @@ export const validateReply = (
 };
 
 export const validatePromoCode = (
-  req: Request<Record<string, never>, unknown, PromoCodeBody>,
+  req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void => {
   const { error, value } = promoCodeSchema.validate(req.body);
   if (error) {
@@ -128,9 +128,9 @@ export const validatePromoCode = (
 };
 
 export const validatePromoCreate = (
-  req: Request<Record<string, never>, unknown, PromoCreateBody>,
+  req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void => {
   const { error, value } = promoCreateSchema.validate(req.body, {
     abortEarly: false,

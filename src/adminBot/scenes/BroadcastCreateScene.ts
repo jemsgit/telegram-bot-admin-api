@@ -1,7 +1,10 @@
 // ./scenes/AdminBroadcastCreateScene.ts
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import { message } from "telegraf/filters";
 import { safeReply } from "../utils";
+import { parseDateTime, isValidUrl } from "../dateInput";
+import { broadcastTypeIcon } from "../labels";
 import type {
   AdminServices,
   AdminBotConfig,
@@ -10,10 +13,10 @@ import type {
 
 export function getAdminBroadcastCreateScene(
   services: AdminServices,
-  _config: AdminBotConfig
+  _config: AdminBotConfig,
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>(
-    "AdminBroadcastCreateScene"
+    "AdminBroadcastCreateScene",
   );
 
   // Инициализация при входе
@@ -35,8 +38,21 @@ export function getAdminBroadcastCreateScene(
         "Шаг 1/6: Введите название рассылки (для внутреннего использования):",
       Markup.inlineKeyboard([
         [Markup.button.callback("« Отмена", "cancel_broadcast")],
-      ])
+      ]),
     );
+  });
+
+  // Команды — до текстового обработчика, иначе `.on(message("text"))` перехватит
+  // `/cancel` и запишет её как значение текущего шага визарда.
+  scene.command("cancel", (ctx) => {
+    if (!ctx.session.admin) {
+      ctx.session.admin = {};
+    }
+    const session = ctx.session.admin;
+
+    session.broadcastDraft = undefined;
+    session.broadcastStep = undefined;
+    ctx.scene.enter("AdminBroadcastListScene");
   });
 
   // Обработка текстового ввода
@@ -64,7 +80,7 @@ export function getAdminBroadcastCreateScene(
             [Markup.button.callback("🖼 Фото", "type_photo")],
             [Markup.button.callback("🎬 Видео", "type_video")],
             [Markup.button.callback("« Отмена", "cancel_broadcast")],
-          ])
+          ]),
         );
         break;
 
@@ -83,7 +99,7 @@ export function getAdminBroadcastCreateScene(
             "❌ Неверный формат URL. Введите корректную ссылку:",
             Markup.inlineKeyboard([
               [Markup.button.callback("« Отмена", "cancel_broadcast")],
-            ])
+            ]),
           );
           return;
         }
@@ -98,7 +114,7 @@ export function getAdminBroadcastCreateScene(
           Markup.inlineKeyboard([
             [Markup.button.callback("⏭ Без текста", "skip_text")],
             [Markup.button.callback("« Отмена", "cancel_broadcast")],
-          ])
+          ]),
         );
         break;
 
@@ -113,7 +129,7 @@ export function getAdminBroadcastCreateScene(
               Markup.inlineKeyboard([
                 [Markup.button.callback("⏭ Отправить сейчас", "send_now")],
                 [Markup.button.callback("« Отмена", "cancel_broadcast")],
-              ])
+              ]),
             );
             return;
           }
@@ -130,7 +146,7 @@ export function getAdminBroadcastCreateScene(
             Markup.inlineKeyboard([
               [Markup.button.callback("⏭ Отправить сейчас", "send_now")],
               [Markup.button.callback("« Отмена", "cancel_broadcast")],
-            ])
+            ]),
           );
         }
         break;
@@ -147,7 +163,7 @@ export function getAdminBroadcastCreateScene(
             Markup.inlineKeyboard([
               [Markup.button.callback("⏭ Без кнопок", "skip_buttons")],
               [Markup.button.callback("« Отмена", "cancel_broadcast")],
-            ])
+            ]),
           );
           return;
         }
@@ -171,17 +187,17 @@ export function getAdminBroadcastCreateScene(
             [
               Markup.button.callback(
                 "➕ Добавить ещё кнопку",
-                "add_more_button"
+                "add_more_button",
               ),
             ],
             [
               Markup.button.callback(
                 "✅ Завершить добавление",
-                "finish_buttons"
+                "finish_buttons",
               ),
             ],
             [Markup.button.callback("« Отмена", "cancel_broadcast")],
-          ])
+          ]),
         );
         break;
       }
@@ -214,7 +230,7 @@ export function getAdminBroadcastCreateScene(
         Markup.inlineKeyboard([
           [Markup.button.callback("⏭ Без текста", "skip_text")],
           [Markup.button.callback("« Отмена", "cancel_broadcast")],
-        ])
+        ]),
       );
     }
   });
@@ -243,7 +259,7 @@ export function getAdminBroadcastCreateScene(
         Markup.inlineKeyboard([
           [Markup.button.callback("⏭ Без текста", "skip_text")],
           [Markup.button.callback("« Отмена", "cancel_broadcast")],
-        ])
+        ]),
       );
     }
   });
@@ -263,7 +279,7 @@ export function getAdminBroadcastCreateScene(
       "✅ Тип: Текст\n\n" + "Шаг 3/6: Введите текст сообщения:",
       Markup.inlineKeyboard([
         [Markup.button.callback("« Отмена", "cancel_broadcast")],
-      ])
+      ]),
     );
   });
 
@@ -281,7 +297,7 @@ export function getAdminBroadcastCreateScene(
       "✅ Тип: Фото\n\n" + "Шаг 3/6: Отправьте фото или ссылку на изображение:",
       Markup.inlineKeyboard([
         [Markup.button.callback("« Отмена", "cancel_broadcast")],
-      ])
+      ]),
     );
   });
 
@@ -299,7 +315,7 @@ export function getAdminBroadcastCreateScene(
       "✅ Тип: Видео\n\n" + "Шаг 3/6: Отправьте видео или ссылку на видеофайл:",
       Markup.inlineKeyboard([
         [Markup.button.callback("« Отмена", "cancel_broadcast")],
-      ])
+      ]),
     );
   });
 
@@ -369,7 +385,7 @@ export function getAdminBroadcastCreateScene(
       Markup.inlineKeyboard([
         [Markup.button.callback("✅ Завершить добавление", "finish_buttons")],
         [Markup.button.callback("« Отмена", "cancel_broadcast")],
-      ])
+      ]),
     );
   });
 
@@ -388,27 +404,25 @@ export function getAdminBroadcastCreateScene(
     const session = ctx.session.admin;
 
     try {
-      const broadcast = {
+      const created = await services.broadcastService.create({
         title: session.broadcastDraft!.title,
         type: session.broadcastDraft!.type || "text",
         text: session.broadcastDraft!.text || "",
         mediaUrl: session.broadcastDraft!.mediaUrl,
         scheduledAt: session.broadcastDraft!.scheduledAt?.toISOString(),
-        status: "pending",
         excludePaid: session.broadcastDraft!.excludePaid,
         linkButtons: session.broadcastDraft!.linkButtons || [],
-        sentUsers: [],
-      };
+      });
 
-      await services.broadcastService.create(broadcast);
-
-      const isNow =
-        new Date(broadcast.scheduledAt!).getTime() - Date.now() < 60000;
+      // `create` всегда возвращает Broadcast с проставленной датой — берём её,
+      // а не поле из черновика (там могло быть undefined → «Invalid Date»).
+      const when = created.scheduledAt
+        ? new Date(created.scheduledAt)
+        : new Date();
+      const isNow = when.getTime() - Date.now() < 60_000;
       const statusMessage = isNow
         ? "✅ Рассылка запущена!"
-        : `✅ Рассылка запланирована на ${new Date(
-            broadcast.scheduledAt!
-          ).toLocaleString("ru")}`;
+        : `✅ Рассылка запланирована на ${when.toLocaleString("ru")}`;
 
       await safeReply(
         ctx,
@@ -416,20 +430,20 @@ export function getAdminBroadcastCreateScene(
         Markup.inlineKeyboard([
           [Markup.button.callback("« К списку рассылок", "back_to_broadcasts")],
           [Markup.button.callback("« В меню", "back_to_menu")],
-        ])
+        ]),
       );
 
       // Очищаем черновик
       session.broadcastDraft = undefined;
       session.broadcastStep = undefined;
     } catch (error) {
-      console.error("Error creating broadcast:", error);
+      log.error("Error creating broadcast:", error);
       await safeReply(
         ctx,
         "⚠️ Ошибка при создании рассылки",
         Markup.inlineKeyboard([
           [Markup.button.callback("« Отмена", "cancel_broadcast")],
-        ])
+        ]),
       );
     }
   });
@@ -464,17 +478,6 @@ export function getAdminBroadcastCreateScene(
     await ctx.scene.enter("MainAdminMenuScene");
   });
 
-  scene.command("cancel", (ctx) => {
-    if (!ctx.session.admin) {
-      ctx.session.admin = {};
-    }
-    const session = ctx.session.admin;
-
-    session.broadcastDraft = undefined;
-    session.broadcastStep = undefined;
-    ctx.scene.enter("AdminBroadcastListScene");
-  });
-
   return scene;
 }
 
@@ -489,7 +492,7 @@ async function askForSchedule(ctx: AdminBotContext, session: any) {
     Markup.inlineKeyboard([
       [Markup.button.callback("📤 Отправить сейчас", "send_now")],
       [Markup.button.callback("« Отмена", "cancel_broadcast")],
-    ])
+    ]),
   );
   session.broadcastStep = "scheduledAt";
 }
@@ -509,7 +512,7 @@ async function askForExcludePaid(ctx: AdminBotContext, session: any) {
         Markup.button.callback("❌ Нет, всем", "exclude_paid_no"),
       ],
       [Markup.button.callback("« Отмена", "cancel_broadcast")],
-    ])
+    ]),
   );
 }
 
@@ -523,19 +526,18 @@ async function askForLinkButtons(ctx: AdminBotContext, _session: any) {
       [Markup.button.callback("➕ Добавить кнопку", "add_more_button")],
       [Markup.button.callback("⏭ Без кнопок", "skip_buttons")],
       [Markup.button.callback("« Отмена", "cancel_broadcast")],
-    ])
+    ]),
   );
 }
 
 async function showConfirmation(
   ctx: AdminBotContext,
   session: any,
-  _services: AdminServices
+  _services: AdminServices,
 ) {
   const draft = session.broadcastDraft!;
 
-  const typeEmoji =
-    draft.type === "text" ? "📝" : draft.type === "photo" ? "🖼" : "🎬";
+  const typeEmoji = broadcastTypeIcon(draft.type);
   const scheduleText = draft.scheduledAt
     ? new Date(draft.scheduledAt).toLocaleString("ru")
     : "сейчас";
@@ -570,63 +572,8 @@ async function showConfirmation(
     Markup.inlineKeyboard([
       [Markup.button.callback("✅ Создать рассылку", "confirm_broadcast")],
       [Markup.button.callback("❌ Отмена", "cancel_broadcast")],
-    ])
+    ]),
   );
 
   session.broadcastStep = undefined;
-}
-
-function parseDateTime(dateTimeString: string): Date {
-  // Формат: ДД.ММ.ГГГГ ЧЧ:ММ
-  const parts = dateTimeString.trim().split(" ");
-
-  if (parts.length !== 2) {
-    throw new Error("Invalid format");
-  }
-
-  const dateParts = parts[0].split(".");
-  const timeParts = parts[1].split(":");
-
-  if (dateParts.length !== 3 || timeParts.length !== 2) {
-    throw new Error("Invalid format");
-  }
-
-  const day = parseInt(dateParts[0]);
-  const month = parseInt(dateParts[1]) - 1;
-  const year = parseInt(dateParts[2]);
-  const hours = parseInt(timeParts[0]);
-  const minutes = parseInt(timeParts[1]);
-
-  if (
-    isNaN(day) ||
-    isNaN(month) ||
-    isNaN(year) ||
-    isNaN(hours) ||
-    isNaN(minutes)
-  ) {
-    throw new Error("Invalid format");
-  }
-
-  const date = new Date(year, month, day, hours, minutes);
-
-  if (
-    date.getDate() !== day ||
-    date.getMonth() !== month ||
-    date.getFullYear() !== year ||
-    date.getHours() !== hours ||
-    date.getMinutes() !== minutes
-  ) {
-    throw new Error("Invalid date");
-  }
-
-  return date;
-}
-
-function isValidUrl(string: string): boolean {
-  try {
-    new URL(string);
-    return true;
-  } catch {
-    return false;
-  }
 }

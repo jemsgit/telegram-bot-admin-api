@@ -2,114 +2,61 @@
 import { Markup, Scenes } from "telegraf";
 import { message } from "telegraf/filters";
 import { safeReply } from "../utils";
-import type {
-  AdminBotConfig,
-  AdminBotContext,
-  AdminServices,
-  CustomScene,
-} from "../../types";
-import { buttons, getMainGlobalMessageHandler } from "./globalMessageHandler";
+import type { AdminBotContext, CustomScene } from "../../types";
+import type { MenuEntry } from "../../features";
+import {
+  EXIT_BUTTON,
+  getMainGlobalMessageHandler,
+} from "./globalMessageHandler";
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
 
 export function getMainAdminMenuScene(
-  services: AdminServices,
-  config: AdminBotConfig,
-  customScenes: CustomScene[]
+  customScenes: CustomScene[],
+  menuEntries: MenuEntry[],
 ) {
-  const customScenesButtons = customScenes
-    .filter((item) => !!item.buttonText)
-    .map((item) => item.buttonText);
+  const scene = new Scenes.BaseScene<AdminBotContext>("MainAdminMenuScene");
+  const textHandler = getMainGlobalMessageHandler(menuEntries, customScenes);
 
-  const mainMessageHandler = getMainGlobalMessageHandler(
-    services,
-    config,
-    customScenes
-  );
-  const MainAdminMenuScene = new Scenes.BaseScene<AdminBotContext>(
-    "MainAdminMenuScene"
-  );
+  const menuButtonSet = new Set(menuEntries.map((e) => e.button));
+  const customButtons = customScenes
+    .map((c) => c.buttonText)
+    .filter((x): x is string => !!x && !menuButtonSet.has(x));
 
-  MainAdminMenuScene.enter(async (ctx) => {
-    if (!ctx.session.admin) {
-      ctx.session.admin = {};
-    }
-    // Формируем клавиатуру динамически на основе конфига
-    const keyboard: string[][] = [];
-    const row: string[] = [];
+  scene.enter(async (ctx) => {
+    if (!ctx.session.admin) ctx.session.admin = {};
 
-    // Пользователи всегда доступны
-    row.push(buttons.users);
-    row.push(buttons.statistics);
-
-    if (config.broadcast) {
-      row.push(buttons.broadcasts);
-    }
-
-    if (row.length > 0) {
-      keyboard.push([...row]);
-    }
-
-    // Вторая строка
-    const row2: string[] = [];
-
-    if (config.postcontentAd) {
-      row2.push(buttons.postcontent);
-    }
-
-    if (config.promocodes) {
-      row2.push(buttons.promocodes);
-    }
-
-    if (row2.length > 0) {
-      keyboard.push([...row2]);
-    }
-
-    // Третья строка
-    const row3: string[] = [];
-
-    if (config.reports) {
-      row3.push(buttons.reports);
-    }
-
-    if (config.payments) {
-      row3.push(buttons.payments);
-    }
-
-    if (row3.length > 0) {
-      keyboard.push([...row3]);
-    }
-    if (customScenesButtons.length) {
-      keyboard.push(customScenesButtons as string[]);
-    }
-
-    // Четвертая строка - выход
-    keyboard.push([buttons.exit]);
+    const keyboard: string[][] = chunk(
+      menuEntries.map((e) => e.button),
+      2,
+    );
+    if (customButtons.length) keyboard.push(customButtons);
+    keyboard.push([EXIT_BUTTON]);
 
     await ctx.reply("🏠 Админ панель\n\nВыберите раздел:", {
       reply_markup: {
-        keyboard: keyboard,
+        keyboard,
         resize_keyboard: true,
         one_time_keyboard: false,
       },
     });
   });
 
-  // Обработчик текстовых сообщений в сцене
-  MainAdminMenuScene.on(message("text"), mainMessageHandler);
+  scene.on(message("text"), textHandler);
 
-  // Команда отмены - возврат в главное меню
-  MainAdminMenuScene.command("cancel", (ctx) =>
-    ctx.scene.enter("MainAdminMenuScene")
-  );
-
-  // Команда выхода из админки
-  MainAdminMenuScene.command("exit", async (ctx) => {
+  scene.command("cancel", (ctx) => ctx.scene.enter("MainAdminMenuScene"));
+  scene.command("exit", async (ctx) => {
     await ctx.scene.leave();
     await safeReply(
       ctx,
       "👤 Вернулись в режим пользователя",
-      Markup.removeKeyboard()
+      Markup.removeKeyboard(),
     );
   });
 
-  return MainAdminMenuScene;
+  return scene;
 }

@@ -5,23 +5,21 @@ import type {
   AdminBotConfig,
   AdminBotContext,
 } from "../../types";
-import { safeReply } from "../utils";
+import { safeReply, renderView, getFoundUser, setFoundUser } from "../utils";
 
 type Ctx = AdminBotContext;
 
 export function getAdminUserProfileScene(
   services: AdminServices,
-  config: AdminBotConfig
+  config: AdminBotConfig,
 ) {
   const scene = new Scenes.BaseScene<Ctx>("AdminUserProfileScene");
 
   scene.enter(async (ctx) => {
-    console.log(ctx.session.admin);
     if (!ctx.session.admin) {
       ctx.session.admin = {};
     }
-    console.log(ctx.session.admin);
-    const user = ctx.session.admin?.foundUser;
+    const user = await getFoundUser(ctx, services.userService);
 
     if (!user) {
       await safeReply(ctx, "⚠️ Данные пользователя не найдены");
@@ -41,32 +39,17 @@ export function getAdminUserProfileScene(
     ];
 
     if (config.subscriptions) {
+      const sub = user.subscription;
       info.push(
         ``,
         `📅 Подписка:`,
         `До: ${
-          user.subscription &&
-          typeof user.subscription !== "string" &&
-          user.subscription.subscriptionToDate
-            ? new Date(user.subscription.subscriptionToDate).toLocaleDateString(
-                "ru"
-              )
+          sub?.activeUntil
+            ? new Date(sub.activeUntil).toLocaleDateString("ru")
             : "—"
         }`,
-        `Демо: ${
-          user.subscription &&
-          typeof user.subscription !== "string" &&
-          user.subscription?.isDemoSubscription
-            ? "Да"
-            : "Нет"
-        }`,
-        `Демо использовано: ${
-          user.subscription &&
-          typeof user.subscription !== "string" &&
-          user.subscription?.demoUsed
-            ? "Да"
-            : "Нет"
-        }`
+        `Пробная: ${sub?.isTrial ? "Да" : "Нет"}`,
+        `Пробная использована: ${sub?.trialUsed ? "Да" : "Нет"}`,
       );
     }
 
@@ -92,10 +75,10 @@ export function getAdminUserProfileScene(
 
     buttons.push(
       [Markup.button.callback("🔍 Найти другого", "search_another")],
-      [Markup.button.callback("« В меню", "back_to_menu")]
+      [Markup.button.callback("« В меню", "back_to_menu")],
     );
 
-    await safeReply(ctx, info.join("\n"), Markup.inlineKeyboard(buttons));
+    await renderView(ctx, info.join("\n"), Markup.inlineKeyboard(buttons));
   });
 
   scene.action("extend_subscription", async (ctx) => {
@@ -115,17 +98,13 @@ export function getAdminUserProfileScene(
 
   scene.action("search_another", async (ctx) => {
     await ctx.answerCbQuery();
-    ctx.session.admin = ctx.session.admin || {};
-    ctx.session.admin.foundUser = undefined;
-
+    setFoundUser(ctx, null);
     await ctx.scene.enter("AdminUserSearchScene");
   });
 
   scene.action("back_to_menu", async (ctx) => {
     await ctx.answerCbQuery();
-    ctx.session.admin = ctx.session.admin || {};
-    ctx.session.admin.foundUser = undefined;
-
+    setFoundUser(ctx, null);
     await ctx.scene.enter("MainAdminMenuScene");
   });
 

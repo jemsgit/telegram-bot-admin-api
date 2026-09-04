@@ -1,14 +1,19 @@
 {
   "name": "telegraf-admin-for-bots",
-  "version": "0.0.7",
-  "main": "lib/cjs/index.js",
-  "module": "lib/esm/index.js",
-  "types": "lib/types/index.d.ts",
+  "version": "0.1.0",
+  "main": "lib/index.js",
+  "module": "lib/index.mjs",
+  "types": "lib/index.d.ts",
   "exports": {
     ".": {
-      "import": "./lib/esm/index.js",
-      "require": "./lib/cjs/index.js",
-      "types": "./lib/types/index.d.ts"
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.ts",
+        "default": "./lib/index.js"
+      }
     }
   },
   "files": [
@@ -16,24 +21,18 @@
     "README.md"
   ],
   "scripts": {
-    "build": "npm run build:cjs && npm run build:esm && npm run build:types",
-    "build:cjs": "tsc --module commonjs --outDir lib/cjs && babel lib/cjs --out-dir lib/cjs",
-    "build:cjs-only": "tsc src/index.cjs.ts --outDir lib/cjs --module commonjs",
-    "build:esm": "tsc --module preserve --moduleResolution bundler --outDir lib/esm",
-    "build:types": "tsc --emitDeclarationOnly --outDir lib/types",
-    "dev": "tsc --watch --noEmit",
-    "dev:build": "tsc --watch --module commonjs --outDir lib/cjs",
+    "build": "tsup",
+    "dev:build": "tsup --watch",
+    "dev": "tsc --noEmit --watch",
+    "typecheck": "tsc -p tsconfig.test.json",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "link": "npm link",
-    "pack": "npm run build && npm pack",
-    "prepublishOnly": "npm run build"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "pack": "yarn build && npm pack",
+    "prepublishOnly": "yarn build"
   },
   "devDependencies": {
-    "@babel/cli": "^7.24.0",
-    "@babel/core": "^7.24.0",
-    "@babel/preset-env": "^7.24.0",
-    "@babel/preset-typescript": "^7.24.0",
     "@eslint/js": "9",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
@@ -41,8 +40,10 @@
     "eslint": "9",
     "globals": "^17.5.0",
     "telegraf": "^4.16.3",
+    "tsup": "^8.5.1",
     "typescript": "^5.4.0",
-    "typescript-eslint": "^8.59.0"
+    "typescript-eslint": "^8.59.0",
+    "vitest": "^3"
   },
   "dependencies": {
     "body-parser": "^2.2.1",

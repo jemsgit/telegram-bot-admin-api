@@ -1,8 +1,10 @@
 // ./scenes/AdminPromoCreateScene.ts
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import { message } from "telegraf/filters";
 import { safeReply } from "../utils";
 import { ensureAdminSession } from "../utils";
+import { parseDate } from "../dateInput";
 import type {
   AdminServices,
   AdminBotConfig,
@@ -31,6 +33,15 @@ export function getAdminPromoCreateScene(
     );
 
     session.promoCreateStep = "code";
+  });
+
+  // Команды — до текстового обработчика, иначе `.on(message("text"))` перехватит
+  // `/cancel` и запишет её как значение текущего шага визарда.
+  scene.command("cancel", (ctx) => {
+    const session = ensureAdminSession(ctx);
+    session.promoDraft = undefined;
+    session.promoCreateStep = undefined;
+    ctx.scene.enter("AdminPromoListScene");
   });
 
   // Обработка текстового ввода
@@ -236,7 +247,7 @@ export function getAdminPromoCreateScene(
       session.promoDraft = undefined;
       session.promoCreateStep = undefined;
     } catch (error) {
-      console.error("Error creating promo:", error);
+      log.error("Error creating promo:", error);
       await safeReply(
         ctx,
         "⚠️ Ошибка при создании промокода",
@@ -269,13 +280,6 @@ export function getAdminPromoCreateScene(
     session.promoDraft = undefined;
     session.promoCreateStep = undefined;
     await ctx.scene.enter("MainAdminMenuScene");
-  });
-
-  scene.command("cancel", (ctx) => {
-    const session = ensureAdminSession(ctx);
-    session.promoDraft = undefined;
-    session.promoCreateStep = undefined;
-    ctx.scene.enter("AdminPromoListScene");
   });
 
   return scene;
@@ -331,31 +335,4 @@ async function showConfirmation(
   );
 
   session.promoCreateStep = undefined;
-}
-
-function parseDate(dateString: string): Date {
-  const parts = dateString.split(".");
-  if (parts.length !== 3) {
-    throw new Error("Invalid date format");
-  }
-
-  const day = parseInt(parts[0]);
-  const month = parseInt(parts[1]) - 1; // месяцы с 0
-  const year = parseInt(parts[2]);
-
-  if (isNaN(day) || isNaN(month) || isNaN(year)) {
-    throw new Error("Invalid date format");
-  }
-
-  const date = new Date(year, month, day);
-
-  if (
-    date.getDate() !== day ||
-    date.getMonth() !== month ||
-    date.getFullYear() !== year
-  ) {
-    throw new Error("Invalid date");
-  }
-
-  return date;
 }

@@ -1,4 +1,5 @@
-import type { TypedDB, PostContentAd, PostContentAdView } from "../types";
+import type { PostContentAd, PostContentAdView } from "../types";
+import type { PostContentStore } from "../stores";
 
 export interface AdCreateBody {
   text: string;
@@ -16,7 +17,7 @@ export type AdUpdateBody = Partial<
 >;
 
 export class PostContentService {
-  constructor(private db: TypedDB) {}
+  constructor(private db: PostContentStore) {}
 
   //
   // LIST
@@ -88,7 +89,7 @@ export class PostContentService {
   //
   async pickForUser(
     userId: string,
-    type: "image" | "video" | "audio" | "text" | "any"
+    type: "image" | "video" | "audio" | "text" | "any",
   ) {
     return this.db.getAdForUser(userId, type);
   }

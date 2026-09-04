@@ -1,11 +1,9 @@
 // ./scenes/AdminReportsListScene.ts
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import { message } from "telegraf/filters";
-import type {
-  AdminServices,
-  AdminBotContext,
-} from "../../types";
-import { safeReply } from "../utils";
+import type { AdminServices, AdminBotContext } from "../../types";
+import { renderView, ensureAdminSession, setFoundUser } from "../utils";
 
 type Ctx = AdminBotContext;
 
@@ -16,19 +14,19 @@ export function getAdminReportsListScene(services: AdminServices) {
   const userService = services.userService;
 
   scene.enter(async (ctx) => {
-    if (!ctx.session.admin) {
-      ctx.session.admin = {};
-    }
+    // состояние ответа держим в изолированной admin-сессии (как в UserReportsScene);
+    // сбрасываем на входе, чтобы «недописанный» ответ не утёк на следующий текст.
+    ensureAdminSession(ctx).replyingToReport = null;
     try {
       const reports = await reportService.getAll();
 
       if (!reports || reports.length === 0) {
-        await safeReply(
+        await renderView(
           ctx,
           "📭 Обращений пока нет",
           Markup.inlineKeyboard([
             [Markup.button.callback("« В меню", "back_to_menu")],
-          ])
+          ]),
         );
         return;
       }
@@ -40,7 +38,8 @@ export function getAdminReportsListScene(services: AdminServices) {
       msg += `⏳ Ожидают ответа: ${pendingCount}\n`;
       msg += `✅ Обработано: ${doneCount}\n\n`;
 
-      await ctx.reply(
+      await renderView(
+        ctx,
         msg,
         Markup.inlineKeyboard([
           [
@@ -49,16 +48,16 @@ export function getAdminReportsListScene(services: AdminServices) {
           ],
           [Markup.button.callback("📋 Все обращения", "show_all")],
           [Markup.button.callback("« В меню", "back_to_menu")],
-        ])
+        ]),
       );
     } catch (e) {
-      console.error(e);
-      await safeReply(
+      log.error("reports scene error", e);
+      await renderView(
         ctx,
         "⚠️ Ошибка при загрузке обращений",
         Markup.inlineKeyboard([
           [Markup.button.callback("« В меню", "back_to_menu")],
-        ])
+        ]),
       );
     }
   });
@@ -85,11 +84,12 @@ export function getAdminReportsListScene(services: AdminServices) {
       if (done !== null) reports = reports.filter((r) => r.done === done);
 
       if (reports.length === 0) {
-        await ctx.editMessageText(
+        await renderView(
+          ctx,
           "📭 Обращений не найдено",
           Markup.inlineKeyboard([
             [Markup.button.callback("« Назад", "back_to_main_reports")],
-          ])
+          ]),
         );
         return;
       }
@@ -98,7 +98,7 @@ export function getAdminReportsListScene(services: AdminServices) {
         const status = report.done ? "✅" : "⏳";
         const label = `${status} ${report.userId}: ${report.message.substring(
           0,
-          30
+          30,
         )}...`;
         return [
           Markup.button.callback(label, `view_full_report_${report._id}`),
@@ -107,12 +107,13 @@ export function getAdminReportsListScene(services: AdminServices) {
 
       buttons.push([Markup.button.callback("« Назад", "back_to_main_reports")]);
 
-      await ctx.editMessageText(
+      await renderView(
+        ctx,
         `📝 Обращения (${reports.length}):\n\n`,
-        Markup.inlineKeyboard(buttons)
+        Markup.inlineKeyboard(buttons),
       );
     } catch (e) {
-      console.error(e);
+      log.error("reports scene error", e);
       await ctx.answerCbQuery("⚠️ Ошибка при загрузке");
     }
   }
@@ -149,18 +150,15 @@ export function getAdminReportsListScene(services: AdminServices) {
         [
           Markup.button.callback(
             "👤 Профиль пользователя",
-            `go_to_user_${report.userId}`
+            `go_to_user_${report.userId}`,
           ),
         ],
-        [Markup.button.callback("« К списку", "show_all")]
+        [Markup.button.callback("« К списку", "show_all")],
       );
 
-      await ctx.editMessageText(
-        text.join("\n"),
-        Markup.inlineKeyboard(buttons)
-      );
+      await renderView(ctx, text.join("\n"), Markup.inlineKeyboard(buttons));
     } catch (e) {
-      console.error(e);
+      log.error("reports scene error", e);
       await ctx.answerCbQuery("⚠️ Ошибка");
     }
   });
@@ -168,40 +166,40 @@ export function getAdminReportsListScene(services: AdminServices) {
   // Ответ пользователю
   scene.action(/^reply_to_report_(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    (ctx.scene as any).state.replyingToReport = ctx.match[1];
+    ensureAdminSession(ctx).replyingToReport = ctx.match[1];
 
     await ctx.reply(
       "✍️ Введите ответ:",
       Markup.inlineKeyboard([
         [Markup.button.callback("« Отмена", "cancel_reply")],
-      ])
+      ]),
     );
   });
 
   scene.on(message("text"), async (ctx) => {
-    const reportId = (ctx.scene as any).state.replyingToReport;
+    const reportId = ctx.session.admin?.replyingToReport;
     if (!reportId) return;
 
     try {
       const report = await reportService.getById(reportId);
       if (!report) {
         await ctx.reply("❌ Обращение не найдено");
-        (ctx.scene as any).state.replyingToReport = null;
+        ensureAdminSession(ctx).replyingToReport = null;
         return;
       }
-      await reportService.reply(report, ctx.message.text);
+      await reportService.reply(report, ctx.message.text.trim());
 
       await ctx.reply(
         "✅ Ответ отправлен",
         Markup.inlineKeyboard([
           [Markup.button.callback("« К списку", "show_all")],
           [Markup.button.callback("« В меню", "back_to_menu")],
-        ])
+        ]),
       );
 
-      (ctx.scene as any).state.replyingToReport = null;
+      ensureAdminSession(ctx).replyingToReport = null;
     } catch (e) {
-      console.error(e);
+      log.error("reports scene error", e);
       await ctx.reply("⚠️ Ошибка при отправке ответа");
     }
   });
@@ -213,8 +211,7 @@ export function getAdminReportsListScene(services: AdminServices) {
     const user = await userService.getById(userId);
 
     if (user) {
-      ctx.session.admin = ctx.session.admin || {};
-      ctx.session.admin.foundUser = user;
+      setFoundUser(ctx, user.userId);
       await ctx.scene.enter("AdminUserProfileScene");
     } else {
       await ctx.answerCbQuery("❌ Пользователь не найден");
@@ -223,25 +220,25 @@ export function getAdminReportsListScene(services: AdminServices) {
 
   scene.action("cancel_reply", async (ctx) => {
     await ctx.answerCbQuery();
-    (ctx.scene as any).state.replyingToReport = null;
+    ensureAdminSession(ctx).replyingToReport = null;
 
     await ctx.reply(
       "❌ Отменено",
       Markup.inlineKeyboard([
         [Markup.button.callback("« К списку", "show_all")],
-      ])
+      ]),
     );
   });
 
   scene.action("back_to_main_reports", async (ctx) => {
     await ctx.answerCbQuery();
-    (ctx.scene as any).state.replyingToReport = null;
+    ensureAdminSession(ctx).replyingToReport = null;
     await ctx.scene.reenter();
   });
 
   scene.action("back_to_menu", async (ctx) => {
     await ctx.answerCbQuery();
-    (ctx.scene as any).state.replyingToReport = null;
+    ensureAdminSession(ctx).replyingToReport = null;
     await ctx.scene.enter("MainAdminMenuScene");
   });
 

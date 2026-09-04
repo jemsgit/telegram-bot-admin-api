@@ -1,6 +1,8 @@
 // ./scenes/AdminUserReportsScene.ts
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import { message } from "telegraf/filters";
+import { renderView, getFoundUser, ensureAdminSession } from "../utils";
 import type {
   AdminServices,
   AdminBotConfig,
@@ -9,7 +11,7 @@ import type {
 
 export function getAdminUserReportsScene(
   services: AdminServices,
-  _config: AdminBotConfig
+  _config: AdminBotConfig,
 ) {
   const scene = new Scenes.BaseScene<AdminBotContext>("AdminUserReportsScene");
 
@@ -18,7 +20,7 @@ export function getAdminUserReportsScene(
     if (!ctx.session.admin) {
       ctx.session.admin = {};
     }
-    const user = ctx.session.admin.foundUser;
+    const user = await getFoundUser(ctx, services.userService);
 
     if (!user) {
       await ctx.reply("⚠️ Пользователь не найден");
@@ -29,16 +31,19 @@ export function getAdminUserReportsScene(
 
     try {
       const all = await reportService.getAll();
-      const reports = all.filter((it) => it.userId === user.userId);
+      const reports = all.filter(
+        (it) => String(it.userId) === String(user.userId),
+      );
 
       if (!reports.length) {
-        await ctx.reply(
+        await renderView(
+          ctx,
           `📭 У пользователя ${
             user.username ? "@" + user.username : user.userId
           } нет обращений`,
           Markup.inlineKeyboard([
             [Markup.button.callback("« Назад", "back_to_profile")],
-          ])
+          ]),
         );
         return;
       }
@@ -57,20 +62,21 @@ export function getAdminUserReportsScene(
       const buttons = reports.map((r, i) => [
         Markup.button.callback(
           `${r.done ? "✅" : "⏳"} Обращение ${i + 1}`,
-          `view_report_${r._id}`
+          `view_report_${r._id}`,
         ),
       ]);
 
       buttons.push([Markup.button.callback("« Назад", "back_to_profile")]);
 
-      await ctx.reply(msg, Markup.inlineKeyboard(buttons));
+      await renderView(ctx, msg, Markup.inlineKeyboard(buttons));
     } catch (e) {
-      console.error("Error fetching reports:", e);
-      await ctx.reply(
+      log.error("Error fetching reports:", e);
+      await renderView(
+        ctx,
         "⚠️ Ошибка при загрузке обращений",
         Markup.inlineKeyboard([
           [Markup.button.callback("« Назад", "back_to_profile")],
-        ])
+        ]),
       );
     }
   });
@@ -100,7 +106,8 @@ export function getAdminUserReportsScene(
         text.push("", `Ответ: ${report.adminReply}`);
       }
 
-      await ctx.reply(
+      await renderView(
+        ctx,
         text.join("\n"),
         Markup.inlineKeyboard([
           ...(report.done
@@ -109,15 +116,15 @@ export function getAdminUserReportsScene(
                 [
                   Markup.button.callback(
                     "✍️ Ответить",
-                    `reply_report_${reportId}`
+                    `reply_report_${reportId}`,
                   ),
                 ],
               ]),
           [Markup.button.callback("« К списку", "back_to_list")],
-        ])
+        ]),
       );
     } catch (e) {
-      console.error("Error viewing report:", e);
+      log.error("Error viewing report:", e);
       await ctx.answerCbQuery("⚠️ Ошибка");
     }
   });
@@ -125,14 +132,13 @@ export function getAdminUserReportsScene(
   // Начать ввод ответа
   scene.action(/^reply_report_(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    ctx.session.admin = ctx.session.admin || {};
-    ctx.session.admin.replyingToReport = ctx.match[1];
+    ensureAdminSession(ctx).replyingToReport = ctx.match[1];
 
     await ctx.reply(
       "✍️ Введите ответ на обращение:",
       Markup.inlineKeyboard([
         [Markup.button.callback("« Отмена", "back_to_list")],
-      ])
+      ]),
     );
   });
 
@@ -155,28 +161,25 @@ export function getAdminUserReportsScene(
         Markup.inlineKeyboard([
           [Markup.button.callback("« К списку", "back_to_list")],
           [Markup.button.callback("« К профилю", "back_to_profile")],
-        ])
+        ]),
       );
-      ctx.session.admin = ctx.session.admin || {};
-      ctx.session.admin.replyingToReport = null;
+      ensureAdminSession(ctx).replyingToReport = null;
     } catch (e) {
-      console.error("Error replying:", e);
+      log.error("Error replying:", e);
       await ctx.reply("⚠️ Ошибка при отправке ответа");
     }
   });
 
   // Назад к списку
   scene.action("back_to_list", async (ctx) => {
-    ctx.session.admin = ctx.session.admin || {};
-    ctx.session.admin.replyingToReport = null;
+    ensureAdminSession(ctx).replyingToReport = null;
     await ctx.answerCbQuery();
     await ctx.scene.reenter();
   });
 
   // Назад к профилю
   scene.action("back_to_profile", async (ctx) => {
-    ctx.session.admin = ctx.session.admin || {};
-    ctx.session.admin.replyingToReport = null;
+    ensureAdminSession(ctx).replyingToReport = null;
     await ctx.answerCbQuery();
     await ctx.scene.enter("AdminUserProfileScene");
   });

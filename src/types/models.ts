@@ -6,6 +6,7 @@ export interface Broadcast {
   mediaUrl?: string;
   scheduledAt?: Date;
   createdAt: Date;
+  updatedAt?: Date;
   status: "pending" | "done" | "progress" | "cancelled";
   excludePaid: boolean;
   sentUsers: string[];
@@ -46,6 +47,44 @@ export interface UserReport {
   _id: string;
 }
 
+export type UserId = number | string;
+
+/**
+ * Подписка пользователя в нейтральных терминах. Конкретный бот маппит
+ * свою модель в эту форму.
+ */
+export interface UserSubscription {
+  /** До какого момента подписка активна. */
+  activeUntil?: Date | null;
+  /** Пробная/демо-подписка. */
+  isTrial?: boolean;
+  /** Пробный период уже был использован. */
+  trialUsed?: boolean;
+}
+
+/**
+ * Пользователь в терминах админки. Всё бот-специфичное — в `extra`.
+ *
+ * @typeParam Extra форма поля `extra` конкретного бота
+ */
+export interface AdminUser<Extra = Record<string, unknown>> {
+  userId: UserId;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  createdAt?: Date;
+  active?: boolean;
+  /** Текущий промокод пользователя (фича `promocodes`). */
+  promoCode?: string;
+  /** Заполняется при включённой фиче `subscriptions`. */
+  subscription?: UserSubscription | null;
+  /** Произвольные поля конкретного бота. */
+  extra?: Extra;
+}
+
+/**
+ * @deprecated Используйте `AdminUser`. Список подписок отдаёт `SubscriptionStore`.
+ */
 export interface Subscription {
   userId: number;
   subscriptionToDate?: Date;
@@ -53,20 +92,16 @@ export interface Subscription {
   isDemoSubscription: boolean;
 }
 
-export interface User {
-  userId: number;
-  username?: string;
+/**
+ * @deprecated Используйте `AdminUser`. Тип оставлен для обратной совместимости
+ * и включает бывшие бот-специфичные поля astro-bot.
+ */
+export type User = AdminUser & {
   name?: string;
-  firstName?: string;
-  lastName?: string;
   zodiak?: string;
   localTimeShift?: number;
   notificationTime?: number;
   bithdate?: Date;
-  demoUsed: boolean;
-  active: boolean;
+  demoUsed?: boolean;
   refLink?: string;
-  createdAt: Date;
-  promoCode?: string;
-  subscription?: Subscription | string;
-}
+};

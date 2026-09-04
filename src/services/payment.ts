@@ -1,20 +1,10 @@
-import type { TypedDB, Payment } from "../types";
+import type { Payment } from "../types";
+import type { PaymentStore, PaymentStats } from "../stores";
 
 export class PaymentService {
-  constructor(private db: TypedDB) {}
+  constructor(private db: PaymentStore) {}
 
-  async getStats(): Promise<{
-    currentMonth: {
-      totalAmount: number;
-      totalIncomeAmount: number;
-      count: number;
-    };
-    lastMonth: {
-      totalAmount: number;
-      totalIncomeAmount: number;
-      count: number;
-    };
-  }> {
+  async getStats(): Promise<PaymentStats> {
     return this.db.getPaymentsStats();
   }
 

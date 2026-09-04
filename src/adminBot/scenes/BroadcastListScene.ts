@@ -1,11 +1,17 @@
 // ./scenes/AdminBroadcastListScene.ts
+import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import type {
   AdminServices,
   AdminBotConfig,
   AdminBotContext,
 } from "../../types";
-import { safeReply } from "../utils";
+import { renderView } from "../utils";
+import {
+  broadcastStatusIcon,
+  broadcastStatusText,
+  broadcastTypeIcon,
+} from "../labels";
 
 export function getAdminBroadcastListScene(
   services: AdminServices,
@@ -47,7 +53,7 @@ export function getAdminBroadcastListScene(
       // Обновляем список
       await showBroadcastsList(ctx, services);
     } catch (error) {
-      console.error("Error deleting broadcast:", error);
+      log.error("Error deleting broadcast:", error);
       await ctx.answerCbQuery("⚠️ Ошибка при удалении");
     }
   });
@@ -59,7 +65,7 @@ export function getAdminBroadcastListScene(
       await services.broadcastService.sendTest(broadcastId);
       await ctx.answerCbQuery("✅ Рассылка Отправлена");
     } catch (error) {
-      console.error("Error deleting broadcast:", error);
+      log.error("Error deleting broadcast:", error);
       await ctx.answerCbQuery("⚠️ Ошибка при отправлке");
     }
   });
@@ -69,7 +75,8 @@ export function getAdminBroadcastListScene(
     await showBroadcastsList(ctx, services);
   });
 
-  // Отменить рассылку
+  // Отменить рассылку (сейчас = удаление записи, поэтому возвращаемся к списку —
+  // деталей у удалённой рассылки уже нет).
   scene.action(/^cancel_broadcast_(.+)$/, async (ctx) => {
     const broadcastId = ctx.match[1];
 
@@ -77,10 +84,9 @@ export function getAdminBroadcastListScene(
       await services.broadcastService.delete(broadcastId);
       await ctx.answerCbQuery("❌ Рассылка отменена");
 
-      // Показываем обновленные детали
-      await showBroadcastDetails(ctx, services, broadcastId);
+      await showBroadcastsList(ctx, services);
     } catch (error) {
-      console.error("Error cancelling broadcast:", error);
+      log.error("Error cancelling broadcast:", error);
       await ctx.answerCbQuery("⚠️ Ошибка");
     }
   });
@@ -128,7 +134,7 @@ async function showBroadcastsList(
     ];
 
     if (!broadcasts || broadcasts.length === 0) {
-      await safeReply(
+      await renderView(
         ctx,
         "📢 Рассылки\n\n📭 Рассылок пока нет",
         Markup.inlineKeyboard([
@@ -160,8 +166,8 @@ async function showBroadcastsList(
 
     // Кнопки для рассылок
     const buttons = broadcasts.slice(0, 15).map((broadcast) => {
-      const statusIcon = getStatusIcon(broadcast.status);
-      const typeIcon = getTypeIcon(broadcast.type);
+      const statusIcon = broadcastStatusIcon(broadcast.status);
+      const typeIcon = broadcastTypeIcon(broadcast.type);
       const timeText = broadcast.scheduledAt
         ? new Date(broadcast.scheduledAt).toLocaleString("ru", {
             day: "2-digit",
@@ -189,10 +195,10 @@ async function showBroadcastsList(
       [Markup.button.callback("« В меню", "back_to_menu")],
     ];
 
-    await safeReply(ctx, message, Markup.inlineKeyboard(keyboard));
+    await renderView(ctx, message, Markup.inlineKeyboard(keyboard));
   } catch (error) {
-    console.error("Error loading broadcasts:", error);
-    await safeReply(
+    log.error("Error loading broadcasts:", error);
+    await renderView(
       ctx,
       "⚠️ Ошибка при загрузке рассылок",
       Markup.inlineKeyboard([
@@ -212,7 +218,8 @@ async function showBroadcastDetails(
     const broadcast = await services.broadcastService.get(broadcastId);
 
     if (!broadcast) {
-      await ctx.editMessageText(
+      await renderView(
+        ctx,
         "❌ Рассылка не найдена",
         Markup.inlineKeyboard([
           [Markup.button.callback("« Назад", "back_to_list")],
@@ -221,15 +228,15 @@ async function showBroadcastDetails(
       return;
     }
 
-    const statusIcon = getStatusIcon(broadcast.status);
-    const typeIcon = getTypeIcon(broadcast.type);
+    const statusIcon = broadcastStatusIcon(broadcast.status);
+    const typeIcon = broadcastTypeIcon(broadcast.type);
 
     const details = [
       `📢 Рассылка: ${broadcast.title || "Без названия"}`,
       "",
       `ID: ${broadcast.id}`,
       `Тип: ${typeIcon} ${broadcast.type}`,
-      `Статус: ${statusIcon} ${getStatusText(broadcast.status)}`,
+      `Статус: ${statusIcon} ${broadcastStatusText(broadcast.status)}`,
       "",
       `Текст: ${
         broadcast.text
@@ -284,10 +291,7 @@ async function showBroadcastDetails(
     // Кнопка удаления для cancelled и done
     if (broadcast.status === "cancelled" || broadcast.status === "done") {
       buttons.push([
-        Markup.button.callback(
-          "🗑 Удалить",
-          `delete_broadcast_${broadcast.id}`,
-        ),
+        Markup.button.callback("🗑 Удалить", `delete_broadcast_${broadcast.id}`),
       ]);
     }
 
@@ -297,56 +301,9 @@ async function showBroadcastDetails(
       [Markup.button.callback("« В меню", "back_to_menu")],
     );
 
-    await ctx.editMessageText(
-      details.join("\n"),
-      Markup.inlineKeyboard(buttons),
-    );
+    await renderView(ctx, details.join("\n"), Markup.inlineKeyboard(buttons));
   } catch (error) {
-    console.error("Error showing broadcast details:", error);
+    log.error("Error showing broadcast details:", error);
     await ctx.answerCbQuery("⚠️ Ошибка");
-  }
-}
-
-// Вспомогательные функции
-function getStatusIcon(status: string): string {
-  switch (status) {
-    case "pending":
-      return "⏳";
-    case "progress":
-      return "🔄";
-    case "done":
-      return "✅";
-    case "cancelled":
-      return "❌";
-    default:
-      return "❓";
-  }
-}
-
-function getStatusText(status: string): string {
-  switch (status) {
-    case "pending":
-      return "Ожидает";
-    case "progress":
-      return "В процессе";
-    case "done":
-      return "Завершено";
-    case "cancelled":
-      return "Отменено";
-    default:
-      return "Неизвестно";
-  }
-}
-
-function getTypeIcon(type: string): string {
-  switch (type) {
-    case "text":
-      return "📝";
-    case "photo":
-      return "🖼";
-    case "video":
-      return "🎬";
-    default:
-      return "❓";
   }
 }
