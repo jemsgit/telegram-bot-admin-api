@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { Telegraf } from "telegraf";
 
 import { createAdmin, type AdminHandle } from "../src/createAdmin";
+import { resolveUiDir } from "../src/http/uiStatic";
 import { makeFakeDb } from "./helpers/fakeDb";
 
 let handle: AdminHandle | undefined;
@@ -21,6 +22,7 @@ function start(opts: {
   db?: Parameters<typeof makeFakeDb>[0];
   features?: Record<string, boolean>;
   customRoutes?: unknown[];
+  ui?: { enabled?: boolean; auth?: { username: string; password: string } };
 }) {
   const bot = new Telegraf("12345:TEST");
   handle = createAdmin({
@@ -33,12 +35,13 @@ function start(opts: {
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     features: opts.features as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     http: {
       enabled: true,
       port: 0,
       token: "t",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       customRoutes: opts.customRoutes as any,
+      ui: opts.ui,
     },
   });
   const server = handle.startHttp()!;
@@ -52,9 +55,149 @@ function start(opts: {
         ...(init?.headers ?? {}),
       },
     });
-  api.raw = (path: string) => fetch(`http://127.0.0.1:${port}${path}`);
+  api.raw = (path: string, init?: RequestInit) =>
+    fetch(`http://127.0.0.1:${port}${path}`, init);
   return api;
 }
+
+describe("GET /api/openapi.json", () => {
+  it("отдаётся под тем же токеном, что и остальной /api/*", async () => {
+    const api = start({});
+    expect((await api.raw("/api/openapi.json")).status).toBe(401);
+
+    const res = await api("/api/openapi.json");
+    expect(res.status).toBe(200);
+    const doc = await res.json();
+    expect(doc.openapi).toBe("3.0.3");
+    expect(doc.paths["/api/users"].get).toBeDefined();
+  });
+
+  it("не включает customRoutes бота (они описываются через ui-schema)", async () => {
+    const api = start({
+      customRoutes: [
+        {
+          method: "get",
+          path: "/api/custom/ping",
+          handler: (_req: unknown, res: { json: (v: unknown) => void }) =>
+            res.json({ pong: true }),
+        },
+      ],
+    });
+    const doc = await (await api("/api/openapi.json")).json();
+    expect(doc.paths["/api/custom/ping"]).toBeUndefined();
+  });
+});
+
+describe("standalone-UI (http.ui.enabled)", () => {
+  it("выключен по умолчанию — GET / ничего не отдаёт (404)", async () => {
+    const api = start({});
+    const r = await api.raw("/");
+    expect(r.status).toBe(404);
+  });
+
+  it("включён — не ломает /api/*, GET / отдаёт бандл если он собран", async () => {
+    const api = start({ ui: { enabled: true } });
+    // /api/* по-прежнему работает и по-прежнему требует токен
+    expect((await api.raw("/api/stats")).status).toBe(401);
+    expect((await api("/api/stats")).status).toBe(200);
+
+    const root = await api.raw("/");
+    const uiBuilt = resolveUiDir() !== null;
+    if (uiBuilt) {
+      expect(root.status).toBe(200);
+      expect(root.headers.get("content-type")).toContain("text/html");
+      expect(await root.text()).toContain("<div id=\"root\">");
+    } else {
+      // lib/ui не собран в этом окружении (напр. свежий чекаут без `ui` build) —
+      // опция не должна ронять сервер, просто отдавать 404 на /.
+      expect(root.status).toBe(404);
+    }
+  });
+});
+
+describe("UI-логин (/ui/*)", () => {
+  it("token-режим по умолчанию: /ui/login отдаёт http.token на верный токен", async () => {
+    const api = start({ ui: { enabled: true } });
+
+    const cfg = await (await api.raw("/ui/config")).json();
+    expect(cfg.loginMode).toBe("token");
+
+    const bad = await api.raw("/ui/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "wrong" }),
+    });
+    expect(bad.status).toBe(401);
+
+    const ok = await api.raw("/ui/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "t" }),
+    });
+    expect(ok.status).toBe(200);
+    const { token } = await ok.json();
+    expect(token).toBe("t");
+
+    // выданный токен реально работает на /api/*
+    const stats = await api.raw("/api/stats", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(stats.status).toBe(200);
+  });
+
+  it("password-режим: сверяет оба поля, возвращает http.token", async () => {
+    const api = start({
+      ui: { enabled: true, auth: { username: "admin", password: "s3cret" } },
+    });
+
+    const cfg = await (await api.raw("/ui/config")).json();
+    expect(cfg.loginMode).toBe("password");
+
+    const wrongUser = await api.raw("/ui/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "nope", password: "s3cret" }),
+    });
+    expect(wrongUser.status).toBe(401);
+
+    const wrongPass = await api.raw("/ui/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "admin", password: "nope" }),
+    });
+    expect(wrongPass.status).toBe(401);
+
+    const ok = await api.raw("/ui/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "admin", password: "s3cret" }),
+    });
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).token).toBe("t");
+  });
+
+  it("createAdmin бросает на пустых username/password в http.ui.auth", () => {
+    const bot = new Telegraf("12345:TEST");
+    expect(() =>
+      createAdmin({
+        bot,
+        admins: [1],
+        db: makeFakeDb(),
+        http: {
+          enabled: true,
+          port: 0,
+          token: "t",
+          ui: { enabled: true, auth: { username: "", password: "x" } },
+        },
+      }).startHttp(),
+    ).toThrow(/username и password/);
+  });
+
+  it("/ui/* не монтируется без ui.enabled", async () => {
+    const api = start({});
+    expect((await api.raw("/ui/config")).status).toBe(404);
+  });
+});
 
 describe("HTTP роуты из дескрипторов", () => {
   it("/health доступен без токена", async () => {
@@ -178,6 +321,7 @@ describe("HTTP роуты из дескрипторов", () => {
         method: "get",
         description: "ping",
         fields: [],
+        kind: "list",
       },
     ]);
   });

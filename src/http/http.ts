@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import type { Telegraf } from "telegraf";
+import type Joi from "joi";
 
 import type { AdminServices } from "../types";
 import type { AdminStore } from "../stores";
@@ -38,6 +39,18 @@ export interface RouteDef {
   handler: RouteHandler;
   /** HTTP-статус для успешного ответа, если хендлер вернул значение. */
   successStatus?: number;
+
+  // --- Метаданные для GET /api/openapi.json (см. src/http/openapi.ts) ---
+  /** Короткое описание роута для документации. */
+  summary?: string;
+  /** Группировка в OpenAPI (по умолчанию — имя фичи). */
+  tags?: string[];
+  /**
+   * Joi-схема тела запроса — та же, что используется в `validate` (см.
+   * `validators/index.ts`, экспортированы и мидлвары, и сырые схемы).
+   * Опционально: не у каждого роута с `validate` схема экспортирована.
+   */
+  bodySchema?: Joi.Schema;
 }
 
 /**

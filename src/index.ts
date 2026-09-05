@@ -43,6 +43,20 @@ export {
   applyAdapterGating,
 } from "./config";
 export { STORE_CONTRACT, validateStore } from "./stores";
+export {
+  resolveRouteUiKind,
+  resolveRouteUi,
+  validateRouteUi,
+} from "./ui-schema";
+export type {
+  FieldType,
+  FieldOption,
+  FieldLookup,
+  FieldValidation,
+  FieldSchema,
+  RouteUiKind,
+  RouteUi,
+} from "./ui-schema";
 export { createConsoleLogger, setLogger, log } from "./logger";
 export type { Logger, LogLevel } from "./logger";
 export type {
@@ -68,6 +82,9 @@ export type {
 export type { SessionStore } from "./adminBot/sessionStore";
 export { HttpError } from "./http/http";
 export type { RouteDef, RouteContext, RouteHandler } from "./http/http";
+export { buildOpenApiDocument } from "./http/openapi";
+export type { OpenApiDocument, BuildOpenApiOptions } from "./http/openapi";
+export { joiSchemaToOpenApi } from "./http/joiToSchema";
 export {
   FEATURE_MODULES,
   selectEnabledFeatures,

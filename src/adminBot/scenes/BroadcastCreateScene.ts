@@ -2,13 +2,14 @@
 import { log } from "../../logger";
 import { Scenes, Markup } from "telegraf";
 import { message } from "telegraf/filters";
-import { safeReply } from "../utils";
+import { safeReply, ensureAdminSession } from "../utils";
 import { parseDateTime, isValidUrl } from "../dateInput";
 import { broadcastTypeIcon } from "../labels";
 import type {
   AdminServices,
   AdminBotConfig,
   AdminBotContext,
+  AdminSession,
 } from "../../types";
 
 export function getAdminBroadcastCreateScene(
@@ -373,8 +374,7 @@ export function getAdminBroadcastCreateScene(
   // Кнопки
   scene.action("skip_buttons", async (ctx) => {
     await ctx.answerCbQuery();
-    const session = ctx.session.admin;
-    await showConfirmation(ctx, session, services);
+    await showConfirmation(ctx, ensureAdminSession(ctx), services);
   });
 
   scene.action("add_more_button", async (ctx) => {
@@ -391,8 +391,7 @@ export function getAdminBroadcastCreateScene(
 
   scene.action("finish_buttons", async (ctx) => {
     await ctx.answerCbQuery();
-    const session = ctx.session.admin;
-    await showConfirmation(ctx, session, services);
+    await showConfirmation(ctx, ensureAdminSession(ctx), services);
   });
 
   // Подтверждение создания
@@ -482,7 +481,7 @@ export function getAdminBroadcastCreateScene(
 }
 
 // Вспомогательные функции
-async function askForSchedule(ctx: AdminBotContext, session: any) {
+async function askForSchedule(ctx: AdminBotContext, session: AdminSession) {
   await safeReply(
     ctx,
     `✅ Текст сообщения сохранен\n\n` +
@@ -497,7 +496,7 @@ async function askForSchedule(ctx: AdminBotContext, session: any) {
   session.broadcastStep = "scheduledAt";
 }
 
-async function askForExcludePaid(ctx: AdminBotContext, session: any) {
+async function askForExcludePaid(ctx: AdminBotContext, session: AdminSession) {
   const scheduleText = session.broadcastDraft!.scheduledAt
     ? new Date(session.broadcastDraft!.scheduledAt).toLocaleString("ru")
     : "сейчас";
@@ -516,7 +515,7 @@ async function askForExcludePaid(ctx: AdminBotContext, session: any) {
   );
 }
 
-async function askForLinkButtons(ctx: AdminBotContext, _session: any) {
+async function askForLinkButtons(ctx: AdminBotContext, _session: AdminSession) {
   await safeReply(
     ctx,
     "Хотите добавить кнопки со ссылками?\n\n" +
@@ -532,12 +531,12 @@ async function askForLinkButtons(ctx: AdminBotContext, _session: any) {
 
 async function showConfirmation(
   ctx: AdminBotContext,
-  session: any,
+  session: AdminSession,
   _services: AdminServices,
 ) {
   const draft = session.broadcastDraft!;
 
-  const typeEmoji = broadcastTypeIcon(draft.type);
+  const typeEmoji = broadcastTypeIcon(draft.type ?? "text");
   const scheduleText = draft.scheduledAt
     ? new Date(draft.scheduledAt).toLocaleString("ru")
     : "сейчас";
@@ -561,7 +560,7 @@ async function showConfirmation(
 
   if (draft.linkButtons && draft.linkButtons.length > 0) {
     summary.push("", `Кнопок: ${draft.linkButtons.length}`);
-    draft.linkButtons.forEach((btn: any, i: number) => {
+    draft.linkButtons.forEach((btn, i) => {
       summary.push(`  ${i + 1}. ${btn.text} → ${btn.url}`);
     });
   }

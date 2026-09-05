@@ -138,7 +138,7 @@ export function getAdminReportsListScene(services: AdminServices) {
       if (report.adminReply)
         text.push(``, `Ответ админа: ${report.adminReply}`);
 
-      const buttons: any[] = [];
+      const buttons: ReturnType<typeof Markup.button.callback>[][] = [];
 
       if (!report.done) {
         buttons.push([

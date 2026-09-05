@@ -1,10 +1,13 @@
 import type { Telegraf } from "telegraf";
-import type { CustomRoute, CustomScene, FeaturesConfig } from "./types";
+import type { CustomScene, FeaturesConfig } from "./types";
 import type { AdminStore } from "./stores";
 import type { SessionStore } from "./adminBot/sessionStore";
 import type { AdminAdapters } from "./adapters";
 import type { Logger, LogLevel } from "./logger";
 import { log } from "./logger";
+import type { CustomRouteWithUi } from "./ui-schema";
+
+export type { CustomRouteWithUi } from "./ui-schema";
 
 /**
  * Единый список фич. `users` и `statistics` всегда включены и здесь не значатся.
@@ -71,14 +74,6 @@ export function applyAdapterGating(
   return out;
 }
 
-/** Описание кастомного роута вместе с UI-схемой для внешней панели. */
-export interface CustomRouteWithUi extends CustomRoute {
-  ui?: {
-    description?: string;
-    fields?: unknown[];
-  };
-}
-
 export interface HttpConfig {
   enabled?: boolean;
   port?: number;
@@ -87,6 +82,24 @@ export interface HttpConfig {
   /** Разрешённые Origin для CORS. `true` — отражать любой (только для локалки). */
   cors?: { origins: string[] | true };
   customRoutes?: CustomRouteWithUi[];
+  /**
+   * Standalone веб-интерфейс (`ui/` → `lib/ui/`), см.
+   * docs/CUSTOMIZABLE_ADMIN_UI.md. Отдаётся тем же портом, что и `/api/*`.
+   */
+  ui?: {
+    enabled?: boolean;
+    /**
+     * Логин в UI по паре username+password (сравниваются оба поля,
+     * constant-time, с троттлингом неудачных попыток — `POST /ui/login`).
+     * Без него — вход по одному `http.token`. В обоих случаях `/api/*` не
+     * меняется: после логина фронт получает `http.token` и ходит в API
+     * с ним, как и любой другой клиент.
+     */
+    auth?: {
+      username: string;
+      password: string;
+    };
+  };
 }
 
 export interface TelegramMenuConfig {

@@ -49,19 +49,51 @@
 
 ## Модель данных (сторона панели)
 
+СУБД панели — **MongoDB** (та же инфраструктура, что уже эксплуатируется у
+бота — не поднимаем новую СУБД ради одной небольшой БД).
+
 ```
 bots
-  id             uuid   pk
-  username       text   unique          -- идёт в URL гейтвея
-  name           text
-  api_url        text                   -- http://10.114.0.3:3010 (VPC private ip — предпочтительно)
-  api_token_enc  bytea                  -- токен, зашифрованный at-rest
-  features       jsonb  null            -- кэш ответа GET /api/config (не обязательно)
-  updated_at     timestamptz
+  _id            ObjectId
+  username       string  unique          -- идёт в URL гейтвея
+  name           string
+  apiUrl         string                  -- http://10.114.0.3:3010 (VPC private ip — предпочтительно)
+  apiTokenEnc    Buffer                  -- токен бота, зашифрованный at-rest
+  features       object  null            -- кэш ответа GET /api/config (не обязательно)
+  updatedAt      Date
+
+operators
+  _id            ObjectId
+  username       string  unique
+  passwordHash   string                  -- bcrypt/argon2
+  createdAt      Date
+
+operatorTokens
+  _id            ObjectId
+  operatorId     ObjectId  ref operators
+  tokenHash      string    unique        -- sha256(token); сам токен нигде не хранится
+  label          string    null          -- "SPA login 2026-09-04" / "cli" / произвольная метка
+  createdAt      Date
+  lastUsedAt     Date      null
+  revokedAt      Date      null
+
+auditLog                                  -- см. IMPROVEMENTS.md #1, задел на будущее
+  _id            ObjectId
+  operatorId     ObjectId
+  botUsername    string
+  method         string
+  path           string
+  status         number
+  at             Date
 ```
 
-`api_token_enc` — шифровать симметрично (libsodium / node `crypto`), ключ из env /
+`apiTokenEnc` — шифровать симметрично (libsodium / node `crypto`), ключ из env /
 секрет-менеджера, расшифровывать только в момент запроса.
+
+На старте `operators` содержит ровно одну запись (общий логин/пароль — так
+решили сейчас), но схема сразу поддерживает несколько операторов и токенов на
+каждого — апгрейд на персональные аккаунты и осмысленный `auditLog.operatorId`
+потом не потребует миграции формата, только добавления записей.
 
 ---
 
@@ -86,10 +118,64 @@ gateway → POST {bot.api_url}/api/broadcasts   { ...body }
 
 ---
 
+## Авторизация операторов панели — bearer-токен, не cookie
+
+Важное требование: gateway/`admin api server` должен остаться вызываемым
+**любым клиентом** — curl, скрипт, другой фронтенд — так же, как сегодня
+работает `AdminServer` каждого бота (статический токен в заголовке, никакой
+привязки к конкретному SPA). Поэтому у панели — **не cookie-сессия, а тот же
+принцип**, только токен выдаётся логином вместо `.env`:
+
+```
+POST /auth/login   { username, password }
+  → 200 { token }                      -- operatorTokens: новая запись, tokenHash = sha256(token)
+  → 401 { error: "invalid_credentials" }
+
+Дальше — на КАЖДЫЙ запрос к /gw/* и /auth/*, независимо от клиента:
+  Authorization: Bearer <token>
+```
+
+- Токен, как и токены ботов, хранится только как хэш (`sha256`) —
+  скомпрометированная БД панели не раскрывает действующие токены.
+- **Никаких cookie/CSRF-механизмов не требуется** — ровно потому, что это не
+  сессия браузера, а обычный bearer-токен, такой же по духу, как
+  `ADMIN_API_TOKEN` у бота, и шлётся так же любым клиентом.
+- **SPA хранит токен только в памяти (React state), не в `localStorage`/
+  `sessionStorage`.** Панель — токен сразу к N ботам, а не к одному, поэтому
+  цена XSS-кражи выше обычного: любой JS на странице читает всё, что лежит в
+  Web Storage. При `F5` — перелогин; для инструмента на несколько заходов в
+  день это приемлемая цена. curl/скрипт/другой клиент этот вопрос вообще не
+  касается — у них нет браузерного JS-контекста, значит и риска кражи из
+  Storage нет, они просто держат токен как обычный API-ключ.
+- `DELETE /auth/tokens/:id` — отозвать токен (потеря ноутбука, ротация).
+  `GET /auth/tokens` — список активных токенов оператора (`label`,
+  `createdAt`, `lastUsedAt`) для самообслуживания.
+- Если позже понадобится UX без перелогина на каждый `F5` — следующий шаг не
+  «положить токен в Storage», а `httpOnly`-cookie **только для браузера**,
+  работающая как refresh-механизм: при загрузке страницы SPA обменивает её на
+  короткоживущий bearer-токен в память. Остальные клиенты продолжают получать
+  обычный bearer прямо из `/auth/login`, как сейчас — общий контракт не
+  меняется.
+
+```js
+// requireOperator — единая проверка для /auth/* (кроме /auth/login) и /gw/*
+async function requireOperator(req, res, next) {
+  const token = req.header("authorization")?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "unauthorized" });
+
+  const tokenHash = sha256(token);
+  const record = await db.operatorTokens.findOne({ tokenHash, revokedAt: null });
+  if (!record) return res.status(401).json({ error: "unauthorized" });
+
+  db.operatorTokens.updateOne({ _id: record._id }, { $set: { lastUsedAt: new Date() } }); // fire-and-forget
+  req.operator = await db.operators.findById(record.operatorId);
+  next();
+}
+```
+
 ## Гейтвей (набросок, Express; логика фреймворко-независима)
 
 ```js
-// requireOperator — существующая сессия/JWT панели
 router.all("/gw/:username/*", requireOperator, async (req, res) => {
   const bot = await db.bots.findByUsername(req.params.username);
   if (!bot) return res.status(404).json({ error: "bot_not_found" });
@@ -159,13 +245,14 @@ router.all("/gw/:username/*", requireOperator, async (req, res) => {
 
 | Слой | Что делаем |
 |---|---|
-| Браузер ↔ панель | HTTPS (уже есть). Сессия/JWT панели. CSRF-защита на мутациях. |
-| AuthZ | RBAC: какой оператор к каким ботам имеет доступ (`operatorCanAccess`). |
+| Браузер/др. клиент ↔ панель | HTTPS (уже есть). Bearer-токен оператора (см. «Авторизация операторов» выше) — не cookie, поэтому CSRF неприменим по конструкции. |
+| AuthZ | пока один общий оператор → одна политика на все боты. `operatorCanAccess` — задел на будущее, когда операторов станет несколько (RBAC: кто к каким ботам). |
 | Панель ↔ API бота | по возрастанию: (1) firewall — порт бота открыт **только с IP панели** (`ufw allow from <panel_ip> to any port 3010`); (2) приватная сеть — `api_url` = VPC private ip (трафик не выходит в интернет); (3) TLS на каждом боте (Caddy) — `api_url` = `https://…`; (4) WireGuard / Cloudflare Tunnel между хостами. |
 | API бота | не публичный: `ufw deny 3010` для мира; в идеале bind `127.0.0.1` + туннель. |
-| Токен | зашифрован at-rest в БД панели; расшифровка только в хендлере гейтвея; ротация — обновить строку в БД + env бота + рестарт бота. |
-| Аудит | лог всех мутаций: оператор, бот, метод, путь, статус, время. |
-| Абуз | rate-limit на `/gw/*`; опц. allowlist методов на роль (например `DELETE` только для senior). |
+| Токен бота | зашифрован at-rest в БД панели; расшифровка только в хендлере гейтвея; ротация — обновить строку в БД + env бота + рестарт бота. |
+| Токен оператора | хранится только как `sha256`-хэш; отзываемый (`DELETE /auth/tokens/:id`); компрометация ноутбука лечится отзывом, не сменой общего пароля. |
+| Аудит | лог всех мутаций: оператор, бот, метод, путь, статус, время (`auditLog`, см. «Модель данных»). |
+| Абуз | rate-limit на `/auth/login` (защита от подбора пароля) и на `/gw/*`; опц. allowlist методов на роль, когда появятся роли. |
 
 Минимально приемлемо для старта: **firewall порта бота на IP панели + HTTPS
 панели + токен только на бэке**. Приватная сеть / TLS на хопе — следующий шаг.

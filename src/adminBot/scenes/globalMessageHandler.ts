@@ -2,14 +2,11 @@
 // (MenuEntry) + кастомных сцен. Выключенные фичи в меню не попадают.
 
 import { Markup } from "telegraf";
-import type { CustomScene } from "../../types";
+import type { AdminBotContext, CustomScene } from "../../types";
 import type { MenuEntry } from "../../features";
 import { safeReply } from "../utils";
 
 export const EXIT_BUTTON = "🚪 Выйти";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Ctx = any;
 
 /**
  * @param menuEntries пункты меню включённых фич
@@ -26,10 +23,12 @@ export function getMainGlobalMessageHandler(
   }
 
   return async function mainGlobalMessageHandler(
-    ctx: Ctx,
+    ctx: AdminBotContext,
     next: () => Promise<void>,
   ) {
-    const text: string | undefined = ctx.update?.message?.text;
+    const msg = ctx.message;
+    const text =
+      msg && "text" in msg ? (msg.text as string | undefined) : undefined;
     if (!text) return next();
 
     const sceneId = byButton.get(text);

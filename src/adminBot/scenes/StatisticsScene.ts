@@ -8,6 +8,18 @@ import type {
 import { safeReply } from "../utils";
 type Ctx = AdminBotContext;
 
+/** Поля, которые этот экран мягко читает из свободной `UserStats` бота. */
+type StatsShape = {
+  totalUsers?: number;
+  activeUsers?: number;
+  paidUsers?: number;
+  totalReports?: number;
+  payments?: {
+    currentMonth?: { count?: number; totalAmount?: number };
+    lastMonth?: { count?: number; totalAmount?: number };
+  };
+};
+
 /**
  * Сцена статистики
  */
@@ -20,12 +32,8 @@ export function getStatsScene(
   scene.enter(async (ctx) => {
     try {
       // Форма статистики определяется конкретным ботом (UserStats), поэтому здесь
-      // читаем поля мягко.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const stats = (await services.userService.getStats()) as Record<
-        string,
-        any
-      >;
+      // читаем поля мягко (см. StatsShape).
+      const stats = (await services.userService.getStats()) as StatsShape;
       const { currentMonth, lastMonth } = stats.payments ?? {};
 
       const now = new Date();

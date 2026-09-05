@@ -35,16 +35,18 @@ export interface PromoCreateBody {
   segments?: string[];
 }
 
-// Joi схемы
-const daysSchema = Joi.object<DaysBody>({
+// Joi схемы. Экспортированы не только как validate-миддлвары ниже, но и сами
+// схемы — используются в routes.ts как RouteDef.bodySchema для
+// GET /api/openapi.json (см. src/http/openapi.ts, joiToSchema.ts).
+export const daysSchema = Joi.object<DaysBody>({
   days: Joi.number().integer().positive().required(),
 });
 
-const reportReplySchema = Joi.object<ReportReplyBody>({
+export const reportReplySchema = Joi.object<ReportReplyBody>({
   text: Joi.string().required(),
 });
 
-const promoCodeSchema = Joi.object<PromoCodeBody>({
+export const promoCodeSchema = Joi.object<PromoCodeBody>({
   promoCode: Joi.string().required(),
 });
 
@@ -73,7 +75,7 @@ export const broadcastValidationSchema = Joi.object<BroadcastCreateBody>({
     .default([]),
 });
 
-const promoCreateSchema = Joi.object<PromoCreateBody>({
+export const promoCreateSchema = Joi.object<PromoCreateBody>({
   code: Joi.string().required(),
   description: Joi.string().optional(),
   discountPercent: Joi.number().min(0).max(100).required(),

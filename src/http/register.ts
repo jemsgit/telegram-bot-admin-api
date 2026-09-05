@@ -3,6 +3,7 @@ import type { Express, RequestHandler } from "express";
 import type { ResolvedFeatures, CustomRouteWithUi } from "../config";
 import { buildHttpRoutes } from "../features";
 import { asyncRoute, type RouteContext } from "./http";
+import { buildOpenApiDocument } from "./openapi";
 
 /**
  * Приводит путь кастомного роута к виду `/api/<...>`: ведущие слэши и необязательный
@@ -39,6 +40,13 @@ export function mountRoutes(
   // GET /api/config — форма фич + UI-схемы кастомных роутов (для внешней панели)
   app.get("/api/config", (_req, res) => {
     res.json(featuresConfigPayload);
+  });
+
+  // GET /api/openapi.json — спека встроенных core+feature роутов (не
+  // включает customRoutes бота — см. src/http/openapi.ts). Источник для
+  // типизированного клиента встроенных экранов панели.
+  app.get("/api/openapi.json", (_req, res) => {
+    res.json(buildOpenApiDocument(features));
   });
 
   // Кастомные роуты хоста — под `/api` и под `apiAuth`.

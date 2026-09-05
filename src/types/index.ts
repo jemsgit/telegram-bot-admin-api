@@ -163,6 +163,9 @@ export interface PostContentAdView {
   lastShownAt: Date | null;
 }
 
+/** `ctx.session.admin` после `ensureAdminSession` — все черновики/шаги визардов. */
+export type AdminSession = NonNullable<SessionData["admin"]>;
+
 export interface AdminBotSessionContext extends Context {
   session: SessionData;
 }

@@ -9,6 +9,7 @@ import type {
   AdminServices,
   AdminBotConfig,
   AdminBotContext,
+  AdminSession,
   Promo,
 } from "../../types";
 
@@ -286,7 +287,7 @@ export function getAdminPromoCreateScene(
 }
 
 // Вспомогательные функции
-async function askForDates(ctx: AdminBotContext, session: any) {
+async function askForDates(ctx: AdminBotContext, session: AdminSession) {
   await safeReply(
     ctx,
     `✅ Описание: ${session.promoDraft!.description || "—"}\n\n` +
@@ -301,7 +302,7 @@ async function askForDates(ctx: AdminBotContext, session: any) {
 
 async function showConfirmation(
   ctx: AdminBotContext,
-  session: any,
+  session: AdminSession,
   _services: AdminServices,
 ) {
   const promo = session.promoDraft!;

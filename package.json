@@ -1,6 +1,10 @@
 {
   "name": "telegraf-admin-for-bots",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jemsgit/telegram-bot-admin-api.git"
+  },
   "main": "lib/index.js",
   "module": "lib/index.mjs",
   "types": "lib/index.d.ts",
@@ -14,6 +18,16 @@
         "types": "./lib/index.d.ts",
         "default": "./lib/index.js"
       }
+    },
+    "./ui-kit": {
+      "import": {
+        "types": "./lib/ui-kit/ui-kit.d.ts",
+        "default": "./lib/ui-kit/index.mjs"
+      },
+      "require": {
+        "types": "./lib/ui-kit/ui-kit.d.ts",
+        "default": "./lib/ui-kit/index.js"
+      }
     }
   },
   "files": [
@@ -21,7 +35,10 @@
     "README.md"
   ],
   "scripts": {
+    "clean": "rm -rf lib",
     "build": "tsup",
+    "build:ui": "cd ui && npm run build:all",
+    "build:all": "yarn clean && yarn build && yarn build:ui",
     "dev:build": "tsup --watch",
     "dev": "tsc --noEmit --watch",
     "typecheck": "tsc -p tsconfig.test.json",
@@ -29,8 +46,9 @@
     "lint:fix": "eslint src --fix",
     "test": "vitest run",
     "test:watch": "vitest",
-    "pack": "yarn build && npm pack",
-    "prepublishOnly": "yarn build"
+    "openapi": "yarn build && node scripts/generate-openapi.js",
+    "pack": "yarn build:all && npm pack",
+    "prepublishOnly": "yarn build:all"
   },
   "devDependencies": {
     "@eslint/js": "9",
@@ -52,11 +70,35 @@
     "joi": "^18.0.2"
   },
   "peerDependencies": {
-    "telegraf": "^4.16.3"
+    "telegraf": "^4.16.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@mantine/core": "^9.0.0",
+    "@mantine/dates": "^9.0.0",
+    "@mantine/form": "^9.0.0",
+    "@mantine/hooks": "^9.0.0"
   },
   "peerDependenciesMeta": {
     "telegraf": {
       "optional": false
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "@mantine/core": {
+      "optional": true
+    },
+    "@mantine/dates": {
+      "optional": true
+    },
+    "@mantine/form": {
+      "optional": true
+    },
+    "@mantine/hooks": {
+      "optional": true
     }
   },
   "packageManager": "yarn@4.1.1"

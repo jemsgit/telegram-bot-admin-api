@@ -10,6 +10,7 @@ import type {
   AdminServices,
   AdminBotConfig,
   AdminBotContext,
+  AdminSession,
 } from "../../types";
 
 export function getAdminPostContentAdCreateScene(
@@ -421,11 +422,11 @@ export function getAdminPostContentAdCreateScene(
 }
 
 // Вспомогательные функции
-async function askForMaxViews(ctx: AdminBotContext, session: any) {
+async function askForMaxViews(ctx: AdminBotContext, session: AdminSession) {
   await safeReply(
     ctx,
-    `✅ Типы: ${session
-      .adDraft!.showFor.map((t: string) => showForIcon(t))
+    `✅ Типы: ${(session.adDraft!.showFor ?? [])
+      .map((t: string) => showForIcon(t))
       .join(" ")}\n\n` +
       "Шаг 3/6: Введите максимальное количество показов (или 0 для безлимита):",
     Markup.inlineKeyboard([[Markup.button.callback("« Отмена", "cancel_ad")]]),
@@ -433,7 +434,7 @@ async function askForMaxViews(ctx: AdminBotContext, session: any) {
   session.adCreateStep = "maxViews";
 }
 
-async function askForDates(ctx: AdminBotContext, session: any) {
+async function askForDates(ctx: AdminBotContext, session: AdminSession) {
   await safeReply(
     ctx,
     `✅ Лимит на пользователя: ${session.adDraft!.perUserLimit}\n\n` +
@@ -448,7 +449,7 @@ async function askForDates(ctx: AdminBotContext, session: any) {
 
 async function showConfirmation(
   ctx: AdminBotContext,
-  session: any,
+  session: AdminSession,
   _services: AdminServices,
 ) {
   const draft = session.adDraft!;
@@ -457,7 +458,7 @@ async function showConfirmation(
     "📋 Подтверждение создания рекламы:",
     "",
     `Текст: ${draft.text}`,
-    `Типы: ${draft.showFor
+    `Типы: ${(draft.showFor ?? [])
       .map((t: string) => showForIcon(t) + " " + showForText(t))
       .join(", ")}`,
     `Макс. показов: ${draft.maxViews || "безлимит"}`,

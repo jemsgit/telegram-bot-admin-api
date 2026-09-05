@@ -55,7 +55,7 @@ export function getAdminUserProfileScene(
 
     if (user.promoCode) info.push(``, `🎁 Промокод: ${user.promoCode}`);
 
-    const buttons: any[] = [];
+    const buttons: ReturnType<typeof Markup.button.callback>[][] = [];
 
     if (config.subscriptions) {
       buttons.push([

@@ -11,6 +11,8 @@ import type { ResolvedFeatures, CustomRouteWithUi } from "./config";
 import { resolveFeatures } from "./config";
 import { errorMiddleware } from "./http/http";
 import { mountRoutes } from "./http/register";
+import { resolveUiDir } from "./http/uiStatic";
+import { createUiAuthRouter, safeEqual } from "./http/uiAuth";
 import { log } from "./logger";
 
 type AdminServerFeaturesConfig = Partial<ResolvedFeatures> & {
@@ -24,6 +26,11 @@ type AdminServerOptions = {
   adminApiKey?: string;
   /** Allowlist Origin для CORS. По умолчанию отражает любой origin. */
   cors?: { origins: string[] | true };
+  /** Отдавать standalone-UI (см. docs/CUSTOMIZABLE_ADMIN_UI.md). */
+  ui?: {
+    enabled?: boolean;
+    auth?: { username: string; password: string };
+  };
 };
 
 /**
@@ -73,6 +80,27 @@ export class AdminServer {
       res.json({ ok: true });
     });
 
+    if (options.ui?.enabled) {
+      // Логин UI — до статики и до /api-авторизации, сам без токена.
+      this.app.use(
+        "/ui",
+        createUiAuthRouter({
+          token: this.adminApiKey,
+          auth: options.ui.auth,
+        }),
+      );
+
+      const uiDir = resolveUiDir();
+      if (uiDir) {
+        this.app.use(express.static(uiDir));
+      } else {
+        log.warn(
+          "http.ui.enabled=true, но собранный UI не найден (lib/ui) — " +
+            "выполните `npm run build` в ui/ перед публикацией/запуском",
+        );
+      }
+    }
+
     this.app.use("/api", this.apiAuth.bind(this));
 
     mountRoutes(
@@ -89,7 +117,7 @@ export class AdminServer {
   private apiAuth(req: Request, res: Response, next: NextFunction) {
     const key =
       req.header("x-api-key") || req.header("authorization")?.split(" ")[1];
-    if (key !== this.adminApiKey) {
+    if (!key || !safeEqual(key, this.adminApiKey)) {
       return res.status(401).json({ error: "unauthorized" });
     }
     next();

@@ -7,6 +7,7 @@ import type {
   AdminServices,
   AdminBotConfig,
   AdminBotContext,
+  AdminUser,
 } from "../../types";
 
 export function getAdminUserSearchScene(
@@ -114,7 +115,7 @@ export function getAdminUserSearchScene(
 }
 
 // Функция отображения списка найденных пользователей
-async function showUsersList(ctx: AdminBotContext, users: any[]) {
+async function showUsersList(ctx: AdminBotContext, users: AdminUser[]) {
   const maxUsers = 10; // Ограничение на количество кнопок
   const displayUsers = users.slice(0, maxUsers);
 

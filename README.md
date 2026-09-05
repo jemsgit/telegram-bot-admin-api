@@ -4,7 +4,8 @@
 Подключается к любому боту по одному паттерну и даёт:
 
 - **Telegram-меню администратора** — управление ботом прямо из чата (команда `/admin`);
-- **HTTP REST API** — для внешней админ-панели.
+- **HTTP REST API** — для внешней админ-панели;
+- **встроенный веб-интерфейс** — `http.ui.enabled`, тем же портом, без отдельного деплоя.
 
 Модуль не зависит от БД: вы передаёте объект, реализующий сторы включённых фич.
 
@@ -22,6 +23,7 @@
 - [HTTP API](#http-api)
 - [Кастомные сцены](#кастомные-сцены)
 - [Кастомные HTTP-роуты](#кастомные-http-роуты)
+- [Веб-интерфейс](#веб-интерфейс)
 - [Миграция с 0.0.x](#миграция-с-00x)
 
 ---
@@ -111,6 +113,10 @@ interface AdminConfig {
     token?: string;            // ОБЯЗАТЕЛЕН при enabled
     cors?: { origins: string[] | true };
     customRoutes?: CustomRouteWithUi[];
+    ui?: {
+      enabled?: boolean;         // standalone веб-интерфейс на GET / (см. ниже)
+      auth?: { username: string; password: string };  // логин по паре полей вместо одного токена
+    };
   };
   logger?: Logger;             // winston / pino / свой { debug,info,warn,error }
   logLevel?: LogLevel;         // "debug" | "info" | "warn" | "error" | "silent" (default "info")
@@ -282,8 +288,10 @@ x-api-key: <token>
 Authorization: Bearer <token>
 ```
 
-> Админите несколько ботов из одной веб-панели? Не ходите в эти API из браузера
-> напрямую (mixed content + токен на клиенте) — проксируйте через бэкенд панели.
+> Встроенный веб-интерфейс (`http.ui.enabled`, см. ниже) ходит в эти API с того
+> же origin относительными путями — это безопасно. Но если строите **отдельную**
+> панель на несколько ботов (другой origin), не бейте в эти API из браузера
+> напрямую — проксируйте через бэкенд панели.
 > См. [docs/CENTRAL_PANEL_GATEWAY.md](docs/CENTRAL_PANEL_GATEWAY.md).
 
 | Метод | Путь | Фича |
@@ -380,8 +388,8 @@ createAdmin({
         ui: {
           description: "Выдать пользователю право",
           fields: [
-            { name: "userId", type: "numberInput", required: true, placement: "path" },
-            { name: "right", type: "textInput", required: true },
+            { name: "userId", type: "number", required: true, placement: "path" },
+            { name: "right", type: "text", required: true },
           ],
         },
       },
@@ -394,8 +402,105 @@ createAdmin({
 (`x-api-key` / `Authorization: Bearer <token>`), что и роуты модуля — префикс
 `/api/` в `path` можно указывать или опускать.
 
+### Схема `ui`
+
+По ней встроенный веб-интерфейс (и внешняя панель) рендерит форму/список/кнопку
+для кастомного роута — без фронтенд-кода на стороне бота. Схема проверяется на
+старте (`validateRouteUi`), при ошибке `createAdmin` бросает.
+
+```ts
+interface RouteUi {
+  kind?: "form" | "list" | "action";  // по умолчанию: GET без полей → list, есть поля → form, иначе → action
+  label?: string;                     // подпись пункта меню (по умолчанию из description)
+  description?: string;
+  fields?: FieldSchema[];
+  columns?: string[];                 // для kind: "list" — какие поля ответа показать колонками
+  confirm?: string;                   // для kind: "action" — текст подтверждающего диалога
+  successMessage?: string;
+}
+
+interface FieldSchema {
+  name: string;
+  label?: string;
+  type: "text" | "textarea" | "number" | "boolean" | "date" | "datetime" | "select" | "lookup";
+  required?: boolean;
+  placement?: "body" | "path" | "query";  // куда уходит значение (по умолчанию body)
+  placeholder?: string;
+  options?: { value: string | number; label: string }[];  // обязательно для type: "select"
+  lookup?: { route: string; searchParam?: string; valueField?: string; labelField?: string };  // обязательно для type: "lookup"
+  validation?: { min?: number; max?: number; minLength?: number; maxLength?: number; pattern?: string };
+}
+```
+
 `GET /api/config` возвращает флаги фич + `customRoutesConfig` (собранный из `ui`,
-с нормализованным `url`) — внешняя панель строит по нему формы.
+с нормализованным `url` и выведенным `kind`).
+
+`GET /api/openapi.json` — OpenAPI 3.0 документ **встроенных** core+feature
+роутов (не `customRoutes` — те уже описаны через `ui`/`customRoutesConfig`
+выше). Источник для типизированного клиента.
+
+---
+
+## Веб-интерфейс
+
+`http: { ui: { enabled: true } }` — модуль сам отдаёт готовый веб-интерфейс на
+`GET /` (тем же портом, что и `/api/*`). Ноль дополнительного деплоя: один
+пакет → рабочая админка для этого бота — встроенные экраны по включённым фичам
+(пользователи, рассылки, промокоды, обращения, платежи, рефералы, реклама) +
+формы кастомных роутов из схемы `ui`. Все запросы — относительными путями, так
+что за TLS-прокси (Dokku/nginx) работает по HTTPS без изменений. Подробный
+дизайн — `docs/CUSTOMIZABLE_ADMIN_UI.md`.
+
+### Логин
+
+`POST /ui/login` (без токена) сверяет данные и возвращает `http.token` фронту —
+дальше он ходит в `/api/*` с ним, как и любой другой клиент. Токен живёт только
+в памяти вкладки (не `localStorage`), при F5 — заново.
+
+- **По умолчанию** — одно поле, `http.token`.
+- **`ui.auth: { username, password }`** — два поля; оба сверяются
+  constant-time, с троттлингом неудачных попыток (5/IP и 20 суммарно за
+  15 мин → `429`). `password` — отдельный человекочитаемый секрет, не сам
+  API-токен: так к длинному случайному `http.token` не подобраться перебором
+  одного поля.
+
+```js
+http: {
+  enabled: true,
+  token: process.env.ADMIN_API_TOKEN,       // длинный случайный, для /api/* и скриптов
+  ui: {
+    enabled: true,
+    auth: {
+      username: process.env.ADMIN_UI_USER,
+      password: process.env.ADMIN_UI_PASSWORD,
+    },
+  },
+}
+```
+
+### `telegraf-admin-for-bots/ui-kit`
+
+Те же компоненты и встроенные экраны (`AutoForm`/`AutoTable`/`ConfirmButton`/
+`GenericRouteScreen`, `UsersScreen`, `BroadcastsScreen`, …) + API-клиент
+(`createApiClient`/`ApiClientProvider`) отдельным библиотечным под-путём
+(ESM+CJS+типы). Для стороннего React-приложения, которое хочет собственный
+рендер поверх того же HTTP API (например, центральная панель на несколько
+ботов — см. `docs/ADMIN_PANEL_APP.md`), не переизобретая формы/таблицы заново.
+
+```bash
+npm install telegraf-admin-for-bots
+npm install react react-dom @mantine/core @mantine/dates @mantine/form @mantine/hooks
+```
+
+```tsx
+import { UsersScreen, ApiClientProvider, createApiClient } from "telegraf-admin-for-bots/ui-kit";
+
+const client = createApiClient({ baseUrl: "/gw/mybot", getToken: () => token });
+// <ApiClientProvider value={client}><UsersScreen config={config} /></ApiClientProvider>
+```
+
+`react` / `react-dom` / `@mantine/*` — **опциональные** peer-зависимости: нужны
+только для `ui-kit`, на `createAdmin()` без него не влияют.
 
 ---
 

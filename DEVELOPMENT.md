@@ -139,10 +139,12 @@ yarn unlink:admin
 
 | скрипт | назначение |
 |---|---|
-| `yarn dev:build` | `tsup --watch` — watch-сборка `lib/` для локалки |
+| `yarn dev:build` | `tsup --watch` — watch-сборка `lib/index.*` для локалки (не трогает `lib/ui`, `lib/ui-kit`) |
 | `yarn dev` | `tsc --noEmit --watch` — только проверка типов |
 | `yarn typecheck` | `tsc --noEmit` разово |
-| `yarn build` | `tsup` — cjs + esm + d.ts (для публикации) |
+| `yarn build` | `tsup` — cjs + esm + d.ts для `lib/index.*` (не чистит `lib/`) |
+| `yarn build:ui` | `cd ui && npm run build:all` — `lib/ui` (standalone) + `lib/ui-kit` (библиотека) |
+| `yarn build:all` | `clean` → `build` → `build:ui`; то же, что `prepublishOnly` |
 | `yarn test` | `vitest run` |
 
 ### `astro-bot`

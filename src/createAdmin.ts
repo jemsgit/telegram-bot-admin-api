@@ -9,6 +9,7 @@ import { createAdminBot } from "./adminBot/createAdminBot";
 import { AdminServer } from "./AdminServer";
 import { normalizeApiPath } from "./http/register";
 import { setLogger } from "./logger";
+import { validateRouteUi, resolveRouteUi } from "./ui-schema";
 
 export interface AdminHandle {
   services: AdminServices;
@@ -46,6 +47,7 @@ export function createAdmin(config: AdminConfig): AdminHandle {
     config.adapters,
   );
   validateStore(config.db, features);
+  validateRouteUi(config.http?.customRoutes ?? []);
   const services = buildAdminServices({
     db: config.db,
     adapters: config.adapters,
@@ -75,6 +77,12 @@ export function createAdmin(config: AdminConfig): AdminHandle {
           "createAdmin: http.enabled требует http.token (модуль не читает env сам)",
         );
       }
+      const uiAuth = http.ui?.auth;
+      if (uiAuth && (!uiAuth.username?.trim() || !uiAuth.password?.trim())) {
+        throw new Error(
+          "createAdmin: http.ui.auth требует непустые username и password",
+        );
+      }
       server = new AdminServer(
         config.bot,
         config.db,
@@ -84,6 +92,7 @@ export function createAdmin(config: AdminConfig): AdminHandle {
           customRoutes: http.customRoutes ?? [],
           adminApiKey: http.token,
           cors: http.cors,
+          ui: http.ui,
         },
         {
           ...features,
@@ -92,7 +101,7 @@ export function createAdmin(config: AdminConfig): AdminHandle {
             .map((r) => ({
               url: normalizeApiPath(r.path),
               method: r.method,
-              ...r.ui,
+              ...resolveRouteUi(r),
             })),
         },
       );
